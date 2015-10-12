@@ -1,0 +1,83 @@
+/* 
+ * pLinguaCore: A JAVA library for Membrane Computing
+ *              http://www.p-lingua.org
+ *
+ * Copyright (C) 2009  Research Group on Natural Computing
+ *                     http://www.gcn.us.es
+ *                      
+ * This file is part of pLinguaCore.
+ *
+ * pLinguaCore is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * pLinguaCore is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with pLinguaCore.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package org.gcn.plinguacore.util.psystem.cellLike;
+
+
+
+import org.gcn.plinguacore.util.psystem.Configuration;
+import org.gcn.plinguacore.util.psystem.Psystem;
+
+import org.gcn.plinguacore.util.psystem.cellLike.membrane.CellLikeSkinMembrane;
+
+import org.gcn.plinguacore.util.psystem.membrane.MembraneStructure;
+
+
+
+
+/**
+ * This class represents P-systems belonging to cell-like group
+ * 
+ * @author Research Group on Natural Computing (http://www.gcn.us.es)
+ * 
+ */
+public class CellLikePsystem extends Psystem {
+
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 8332316133669389557L;
+
+	/**
+	 * Creates a new P-system without skin membrane
+	 */
+	public CellLikePsystem() {
+		super();
+	
+
+	}
+	
+
+	@Override
+	public void setMembraneStructure(MembraneStructure membraneStructure) {
+		// TODO Auto-generated method stub
+		if (membraneStructure instanceof CellLikeSkinMembrane)
+			super.setMembraneStructure(membraneStructure);
+		else
+			throw new IllegalArgumentException("The membrane structure must be cell-like");
+	}
+
+
+	@Override
+	protected Configuration newConfigurationObject() {
+		// TODO Auto-generated method stub
+		return new CellLikeConfiguration(this);
+	}
+	
+	
+
+	
+	
+	
+	
+}

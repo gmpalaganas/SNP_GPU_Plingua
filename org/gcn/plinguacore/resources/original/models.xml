@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<models>
+  <model  id="membrane_division" class="org.gcn.plinguacore.simulator.cellLike.activeMembranes.DivisionPsystemFactory"/>
+  <model  id="membrane_creation" class="org.gcn.plinguacore.simulator.cellLike.activeMembranes.CreationPsystemFactory"/>
+  <model  id="probabilistic" class="org.gcn.plinguacore.simulator.cellLike.probabilistic.ProbabilisticPsystemFactory"/>
+  <model  id="symport_antiport" class="org.gcn.plinguacore.simulator.cellLike.transition.SymportAntiportPsystemFactory"/>
+  <model  id="ev_symport_antiport" class="org.gcn.plinguacore.simulator.cellLike.transition.EvSymportAntiportPsystemFactory"/>
+  <model  id="transition" class="org.gcn.plinguacore.simulator.cellLike.transition.TransitionPsystemFactory"/>
+  <model  id="evolution_communication" class="org.gcn.plinguacore.simulator.cellLike.transition.EvolutionCommunicationPsystemFactory"/>
+  <model  id="tissue_psystems"         class="org.gcn.plinguacore.simulator.tissueLike.TissueLikePsystemFactory"/>
+  <model  id="TSCS"                     class="org.gcn.plinguacore.simulator.tissueLike.TSCSPsystemFactory"/>
+  <model  id="spiking_psystems"        class="org.gcn.plinguacore.simulator.spiking.SpikingPsystemFactory"/>  
+</models>
+

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<formats>
+  <input_formats>
+    <format id="XML" class="org.gcn.plinguacore.parser.input.XML.XMLCellLikeInputParser" option="-XML" extension="xml"/>
+    <format id="P-Lingua" class="org.gcn.plinguacore.parser.input.plingua.PlinguaInputParser" option="-PLI" extension="pli"/>
+  </input_formats>
+  <output_formats>
+    <format id="XML" class="org.gcn.plinguacore.parser.output.XML.XMLCellLikeOutputParser" option="-XML" extension="xml"/>
+    <format id="Binary" class="org.gcn.plinguacore.parser.output.binary.BinaryOutputParserFactory" option="-BIN" extension="bin"/>    
+  </output_formats>
+</formats>

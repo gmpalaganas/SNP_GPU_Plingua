@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<simulators>
+	<simulator id = "active_membranes" class ="org.gcn.plinguacore.simulator.cellLike.activeMembranes.ActiveMembranesSimulator"></simulator>
+</simulators>

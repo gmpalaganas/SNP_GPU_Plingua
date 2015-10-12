@@ -1,0 +1,1 @@
+java org.gcn.plinguacore.applications.AppMain plingua_sim -pli $1 -o $2

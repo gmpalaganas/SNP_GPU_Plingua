@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<simulators>
+	<simulator id ="binomial" class ="org.gcn.plinguacore.simulator.cellLike.probabilistic.BinomialProbabilisticSimulator"></simulator>
+	<simulator id ="probabilistic" class ="org.gcn.plinguacore.simulator.cellLike.probabilistic.ProbabilisticSimulator"></simulator>
+	<simulator id="dndp" class="org.gcn.plinguacore.simulator.cellLike.probabilistic.DndProbabilisticSimulatorParallel"></simulator>
+	<simulator id="dndp-seq" class="org.gcn.plinguacore.simulator.cellLike.probabilistic.DndProbabilisticSimulatorSequential"></simulator>
+	<simulator id="dndp2" class="org.gcn.plinguacore.simulator.cellLike.probabilistic.Dnd2SimParallel"></simulator>
+	<simulator id="dndp2-seq" class="org.gcn.plinguacore.simulator.cellLike.probabilistic.Dnd2SimSeq"></simulator>
+	<simulator id="no-maximal" class="org.gcn.plinguacore.simulator.cellLike.probabilistic.NoMaximalSim"></simulator>
+    <simulator id="dndp3" class="org.gcn.plinguacore.simulator.cellLike.probabilistic.Dnd3ProbabilisticSimulator"></simulator>
+   <simulator id="dndp4" class="org.gcn.plinguacore.simulator.cellLike.probabilistic.Dnd4ProbabilisticSimulator"></simulator>
+   <simulator id="dcba" class="org.gcn.plinguacore.simulator.cellLike.probabilistic.dcba.DCBAProbabilisticSimulator"></simulator>
+ 
+</simulators>

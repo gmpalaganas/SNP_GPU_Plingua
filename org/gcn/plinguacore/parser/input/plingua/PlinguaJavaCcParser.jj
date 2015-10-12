@@ -1,0 +1,2013 @@
+/* 
+ * pLinguaCore: A JAVA library for Membrane Computing
+ *              http://www.p-lingua.org
+ *
+ * Copyright (C) 2009  Research Group on Natural Computing
+ *                     http://www.gcn.us.es
+ *                      
+ * This file is part of pLinguaCore.
+ *
+ * pLinguaCore is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * pLinguaCore is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with pLinguaCore.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+
+options{
+	LOOKAHEAD=1;
+	STATIC=false;
+	
+}
+PARSER_BEGIN(PlinguaJavaCcParser)
+
+package org.gcn.plinguacore.parser.input.plingua;
+
+import java.io.InputStream;
+import java.io.StringReader;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Stack;
+import java.util.Iterator;
+import java.util.SortedSet;
+import java.util.TreeSet;
+
+import org.gcn.plinguacore.parser.input.byteCounter.InputStreamWrapper;
+import org.gcn.plinguacore.parser.input.byteCounter.StringReaderWrapper;
+import org.gcn.plinguacore.util.HashMultiSet;
+import org.gcn.plinguacore.util.MultiSet;
+import org.gcn.plinguacore.util.PlinguaCoreException;
+import org.gcn.plinguacore.util.psystem.Label;
+import org.gcn.plinguacore.util.psystem.Psystem;
+import org.gcn.plinguacore.util.psystem.cellLike.membrane.CellLikeMembrane;
+import org.gcn.plinguacore.util.psystem.cellLike.membrane.CellLikeMembraneFactory;
+import org.gcn.plinguacore.util.psystem.cellLike.membrane.CellLikeSkinMembrane;
+import org.gcn.plinguacore.util.psystem.factory.AbstractPsystemFactory;
+import org.gcn.plinguacore.util.psystem.rule.AbstractRuleFactory;
+import org.gcn.plinguacore.util.psystem.rule.IStochasticRule;
+import org.gcn.plinguacore.util.psystem.rule.InnerRuleMembrane;
+import org.gcn.plinguacore.util.psystem.rule.LeftHandRule;
+import org.gcn.plinguacore.util.psystem.rule.OuterRuleMembrane;
+import org.gcn.plinguacore.util.psystem.rule.RightHandRule;
+import org.gcn.plinguacore.util.psystem.rule.IRule;
+import org.gcn.plinguacore.util.psystem.rule.spiking.SpikingRule;
+import org.gcn.plinguacore.util.psystem.spiking.membrane.SpikingMembrane;
+import org.gcn.plinguacore.util.psystem.spiking.membrane.SpikingMembraneStructure;
+import org.gcn.plinguacore.util.Pair;
+import org.gcn.plinguacore.util.psystem.spiking.membrane.Astrocyte;
+import org.gcn.plinguacore.util.psystem.spiking.membrane.WangAstrocyte;
+import org.gcn.plinguacore.util.psystem.spiking.membrane.BinderAstrocyte;
+import org.gcn.plinguacore.util.psystem.spiking.membrane.AstrocyteFunction;
+import org.gcn.plinguacore.util.psystem.spiking.membrane.EvaluableFunction;
+
+class PlinguaJavaCcParser extends PlinguaProgram{
+	
+	
+	private static PlinguaJavaCcParser singleton=null;
+	private String expr=null;
+	private String ruleType = null;
+	private boolean computeEfficiencyAttributes=false;
+	private boolean existsBuddingOrDivisionRules = false;
+	private boolean existsBinderAstrocytes = false;
+
+	private boolean isSpikingPsystem()
+	{
+		return getPsystem().getAbstractPsystemFactory().getModelName().equals("spiking_psystems");
+	}	
+
+       private void doSentence(Stack<Token>ranges,Token sentenceToken,PlinguaEnvironment env,boolean execute) throws ParseException
+        {
+		if (env.getDepthLevel()>0)
+			return;
+                if (ranges.isEmpty())
+                {
+			if (execute)
+			{
+                        	Token currentToken=token;
+                        	token=sentenceToken;
+				jj_ntk=-1;
+				getCurrentEnvironment().disableSafeMode();
+                        	instruction();
+				getCurrentEnvironment().enableSafeMode();
+                        	token=currentToken;
+				jj_ntk=-1;
+			}
+                }
+                else
+                {
+                        Token rangeToken = ranges.pop();
+                        Token currentToken=token;
+                        token=rangeToken;
+			jj_ntk=-1;
+			getCurrentEnvironment().disableSafeMode();
+                        Range range=range(null);
+			getCurrentEnvironment().enableSafeMode();
+                        token=currentToken;
+			jj_ntk=-1;				
+                        double begin,end;
+                        begin=range.beginNumber.doubleValue();
+                        end=range.endNumber.doubleValue();
+
+			if (range.variable==null)
+				doSentence(ranges,sentenceToken,env,execute && begin!=end);
+			else
+			{
+                        	if (range.firstOperation==Range.LESS_OPERATION) begin++;
+                        	if (range.secondOperation==Range.LESS_OPERATION) end--;
+                        	for(double i=begin;i<=end;i++)
+                        	{
+					getCurrentEnvironment().disableSafeMode();
+                                	env.setVariable(range.variable,getNumber(i));
+					getCurrentEnvironment().enableSafeMode();
+                                	doSentence(ranges,sentenceToken,env,execute);
+                        	}
+				getCurrentEnvironment().disableSafeMode();
+                        	env.removeVariable(range.variable);
+				getCurrentEnvironment().enableSafeMode();
+			}
+			ranges.push(rangeToken);
+
+                }
+
+        }
+
+
+
+	
+		
+	static class Range {
+
+		public static final boolean LESS_OPERATION=false;
+		public static final boolean LESS_OR_EQUAL_OPERATION=true;
+
+		private Number beginNumber;
+		private boolean firstOperation;		
+		private String variable;
+		private boolean secondOperation;
+		private Number endNumber;
+		public Range(Number beginNumber, boolean firstOperation, String variable, boolean secondOperation, Number endNumber) {
+			super();
+			this.beginNumber = beginNumber;
+			this.firstOperation = firstOperation;
+			this.variable = variable;
+			this.secondOperation = secondOperation;
+			this.endNumber = endNumber;
+		}
+		
+		
+	}
+	
+	private static Psystem parse(PlinguaJavaCcParser parser,PlinguaInputParser inputParser) throws PlinguaCoreException
+	{
+		try
+		{
+			parser.reset();			
+			parser.setInputParser(inputParser);
+			parser.grammar();
+		}
+		catch(ParseException ex)
+		{
+			parser.writeError(ex);
+		}
+		catch(TokenMgrError er)
+		{
+			parser.writeError(er);
+		}
+		if (parser.isError())
+			throw new PlinguaCoreException("Parser process finished with errors");
+
+		return parser.getPsystem();
+	}
+
+	        private static PlinguaJavaCcParser getInstance(InputStream stream)
+        {
+        		InputStreamWrapper streamWrapper = new InputStreamWrapper(stream);
+                if (singleton==null)
+                        singleton= new PlinguaJavaCcParser(streamWrapper);
+                else
+                        singleton.ReInit(streamWrapper);
+                
+                byteCounter=streamWrapper;
+                
+                return singleton;
+        }
+        private static PlinguaJavaCcParser getInstance(StringReader reader)
+        {
+        		StringReaderWrapper readerWrapper= new StringReaderWrapper(reader);
+                if (singleton==null)
+                        singleton= new PlinguaJavaCcParser(readerWrapper);
+                 else
+                        singleton.ReInit(readerWrapper);
+                
+                byteCounter=readerWrapper;
+                return singleton;
+        }
+
+        protected static Psystem parse(InputStream stream,PlinguaInputParser inputParser) throws PlinguaCoreException
+        {
+
+
+                return parse(getInstance(stream),inputParser);
+        }
+
+        protected static Psystem parse(StringReader reader, PlinguaInputParser inputParser) throws PlinguaCoreException
+        {
+                return parse(getInstance(reader),inputParser);
+        }
+		
+	@Override
+	protected void doSafeCall(Token callToken) throws ParseException {
+		Token returnToken=token;
+		token=callToken;
+		jj_ntk=-1;
+		moduleBody();
+		token=returnToken;
+		jj_ntk=-1;
+	}
+
+	
+	
+}
+
+	
+
+	
+
+PARSER_END(PlinguaJavaCcParser)
+
+SKIP :
+{
+         "/*" : WithinComment
+        |" "
+	|"\t"
+	|"\r"
+	|"\n"
+}
+
+<WithinComment> SKIP :
+{
+  "*/" : DEFAULT
+}
+
+<WithinComment> MORE :
+{
+  <~[]>
+}
+
+
+
+
+TOKEN[IGNORE_CASE] : {
+	
+	  <MULTISET: "@ms">
+        | <FIRST_MULTISET: "@ms1">
+	| <SECOND_MULTISET: "@ms2">
+	| <DEF: "def">
+	| <CALL: "call">
+	| <LET: "let">
+	| <MU: "@mu">
+	| <MEMB_IN: "@min">
+	| <MEMB_OUT: "@mout">
+	| <LOG: "@log">
+	| <FLOOR: "@floor">
+	| <CEIL: "@ceil">
+	| <ROUND: "@round">
+	| <DISSOLVES: "@d">
+	| <VARIANT: "@model">
+	| <DEBUG: "@debug">
+	| <MARCS: "@marcs">
+	| <MDICT: "@mdict">
+	| <MINST: "@minst">
+	| <MSEQ: "@mseq">
+	| <MASYNCH: "@masynch">
+	| <MVALID: "@mvalid">
+	| <STRING: "\""(~["\""])*"\"">
+	| <ID: (["a"-"z"]|"_")(["a"-"z"]|"_"|["0"-"9"])*>
+	| <DOLLAR: "$">
+	| <QUOTE: "'">
+	| <ARROW: "-->">
+	| <DOUBLE_ARROW: "<-->">
+	| <DOT:".">
+	| <NATURAL_NUMBER: (["0"-"9"])+>
+	| <NUMBER: ((["0"-"9"])+(<DOT>(["0"-"9"])+)?|<DOT>(["0"-"9"])+)
+		   ("e"(<PLUS>|<MINUS>)?(["0"-"9"])+)?>	
+	| <EMPTY: "#">
+	| <SEPARATOR: ";">
+	| <LBRACE: "{">
+	| <RBRACE: "}">
+	| <COMMA: ",">
+	| <LSQUARE: "[">
+	| <RSQUARE: "]">
+	| <LPAR: "(">
+	| <RPAR: ")">
+	| <COLON: ":">
+	| <DOUBLE_COLON: <COLON><COLON>>
+	| <PLUS: "+">
+	| <MINUS: "-">
+	| <MUL: "*">
+	| <DIV: "/">
+	| <MOD: "%">
+	| <POW: "^">
+	| <ASIG: "=">
+	| <LESS_THAN: "<">
+	| <GREATER_THAN: ">">
+	| <LESS_OR_EQUAL_THAN: "<="|"=<">
+	| <GREATER_OR_EQUAL_THAN: ">="|"=>">
+	| <DIFF: "<>">
+	| <INC: "+=">
+	| <OR: "||">
+	| <STRING_OBJECT: <LESS_THAN>(<ID>(<DOT>(<ID>|"?"))*)?<GREATER_THAN>>
+	| <MOUTRES_BINARY: "@moutres_binary">
+	| <MOUTRES_NATURAL: "@moutres_natural">
+	| <MOUTRES_SUMMATORIES: "@moutres_summatories">
+	| <MASTB: "@mastb">
+	| <MASTW: "@mastw">
+	| <MASTFUNC: "@mastfunc">
+
+}
+
+
+private String string0() : {Token varTokenInit,varTokenEnd;String str;}{
+	<STRING>{return token.image.substring(1,token.image.length()-1);}
+	|{varTokenInit=token.next;}str=stringVariable(){varTokenEnd=token;getCurrentEnvironment().getStringVariable(str,varTokenInit,varTokenEnd);}
+	
+}
+
+private String string() : {String str,str1;}{
+	str=string0()
+	(
+		<PLUS>
+		str1=string0(){if (!getCurrentEnvironment().isSafeMode())str+=str1;}
+	)*
+	{return str;}
+}
+
+
+private String indexes() : {Number n;String result;}{
+	<LBRACE>
+	n=number(){result="{"+n;}
+	(<COMMA>n=number(){result+=","+n;})*
+	<RBRACE>{return result+"}";}
+}
+ 
+
+private String numericVariable() : {String result;String indexes="";}{
+	<ID>{result=token.image;}
+	(indexes=indexes())?
+	{return result+indexes;}
+}
+private String stringVariable() : {String result;}{
+	<DOLLAR>{result=token.image;}<ID>
+	{return result+token.image;}
+}
+
+private Number number0() : {Number n;boolean neg=false;String var;Token varTokenInit,varTokenEnd;}{
+	
+	(<PLUS>|<MINUS>{neg=true;})?
+	((<NUMBER>|<NATURAL_NUMBER>){n = getNumber(Double.parseDouble(token.image));}
+	|{varTokenInit=token.next;}var=numericVariable(){varTokenEnd=token;n= getCurrentEnvironment().getNumericVariable(var,varTokenInit,varTokenEnd);}
+	|<LPAR>n=number()<RPAR>)
+	{
+		if (neg && n!=null)
+			return getNumber(-n.doubleValue());
+		else
+			return n;
+	}
+}
+
+private Number number01() : {Number n;Stack<Integer> op= new Stack<Integer>();}
+{
+  (<LOG>{op.push(1);}|<CEIL>{op.push(2);}|<FLOOR>{op.push(3);})*
+  n=number0()
+  {
+    if (getCurrentEnvironment().isSafeMode())
+    {
+    	n=null;
+    	op=null;
+    }
+    else
+    {
+    	while(!op.isEmpty())
+    	{
+    		switch(op.pop())
+    		{
+    	  		case 1: /* Logaritmo en base 2 */
+    	   			n = getNumber(Math.log(n.doubleValue())/Math.log(2));
+    	   		break;
+    	  		case 2: /* Parte entera por exceso */
+    	   			n= getNumber(Math.ceil(n.doubleValue()));
+    	   		break;
+    	  		case 3: /* Parte entera por defecto */
+    	   			n= getNumber(Math.floor(n.doubleValue()));
+    	   		break; 
+    		}
+    	}
+    }
+    
+  	return n;
+  }
+
+}
+
+private Number number1() : {Number n1,n2;}{
+	n1=number01()
+	(
+	<POW>
+	n2=number01()
+	{
+		n1 = getCurrentEnvironment().isSafeMode()?null:getNumber(Math.pow(n1.doubleValue(),n2.doubleValue()));
+	}
+	)*
+	{return n1;}
+}
+
+
+private Number number2() : {Number n1,n2;int op;}{
+	n1=number1()
+	(
+	(<MUL>{op=1;}|<DIV>{op=2;}|<MOD>{op=3;})
+	n2=number1()
+	{
+		switch (op)
+		{
+			case 1:
+				n1 = getCurrentEnvironment().isSafeMode()?null:getNumber(n1.doubleValue()*n2.doubleValue());
+			break;
+			case 2:
+				n1 = getCurrentEnvironment().isSafeMode()?null:getNumber(n1.doubleValue()/n2.doubleValue());
+			break;
+			case 3:
+				n1 = getCurrentEnvironment().isSafeMode()?null:getNumber(n1.doubleValue()%n2.doubleValue());
+			break;
+		}
+	}
+	)*
+	{return n1;}
+}
+
+private Number number() : {Number n1,n2;int op;}{
+	n1=number2()
+	(
+	(<PLUS>{op=1;}|<MINUS>{op=2;})
+	n2=number2()
+	{
+		switch (op)
+		{
+			case 1:
+				n1 = getCurrentEnvironment().isSafeMode()?null:getNumber(n1.doubleValue()+n2.doubleValue());
+			break;
+			case 2:
+				n1 = getCurrentEnvironment().isSafeMode()?null:getNumber(n1.doubleValue()-n2.doubleValue());
+			break;
+		}
+	}
+	)*
+	{return n1;}
+}
+
+
+
+
+private String object() : {String name,var;Token varTokenInit,varTokenEnd;Number n;String indexes="";} {
+	((<ID>{name=token.image;}
+	|{varTokenInit=token.next;}var=stringVariable(){varTokenEnd=token;name=getCurrentEnvironment().getStringVariable(var,varTokenInit,varTokenEnd);})
+	(indexes=indexes())?
+	{return name+indexes;})
+	|<STRING_OBJECT>{return token.image;}
+}
+
+
+
+
+private void variantDef() : 
+{
+	String errorMsg="";
+	String model="";
+}
+{
+	<VARIANT>
+	<STRING_OBJECT>
+	{
+		model= token.image.substring(1,token.image.length()-1);
+		try
+		{
+			Iterator<String>it=AbstractPsystemFactory.getModelsInfo().getModelsIterator();
+			errorMsg="Was expecting one of these models:\n";
+			while(it.hasNext())
+			{
+				errorMsg+="    * "+it.next();
+				if (it.hasNext())
+					errorMsg+="\n";
+			}
+
+			setPsystem(AbstractPsystemFactory.createAbstractPsystemFactory(model).createPsystem());
+			writeInfo("Model = "+model,4);
+				
+		}
+		catch(Exception ex)
+		{
+			throwSemanticsException(ex.getMessage(),token,token,errorMsg);
+		}
+	}
+	
+	
+}
+
+
+
+private void param(List<String> params) : {String str;Token paramTokenInit,paramTokenEnd;}{
+	{paramTokenInit=token.next;}
+	(str=stringVariable()|str=numericVariable())
+	{
+		paramTokenEnd=token;
+		if (params.contains(str))
+			throwSemanticsException("Repeated parameter '"+str+"'",paramTokenInit,paramTokenEnd);
+		params.add(str);
+	}
+}
+
+private void moduleBody() : {}{
+
+	(sentence())*
+}
+
+
+
+
+
+private void moduleDef() : {Token moduleNameToken;Token moduleBodyToken;List<String>parameters=new ArrayList<String>();}{
+
+	<DEF><ID>{moduleNameToken=token;}
+	<LPAR>
+	(param(parameters)(<COMMA>param(parameters))*)?
+	<RPAR>
+	<LBRACE>{moduleBodyToken=token;}	
+	{
+		int counter=1;
+		Token t=token,t1;
+		do{
+			t1=t;
+			t=getNextToken();
+			if (t.kind==LBRACE) counter ++;
+			if (t.kind==RBRACE) counter --;
+			if (t.kind==EOF)
+			{
+				int expected[][]= new int[1][1];
+				expected[0][0] = RBRACE;
+				throw new ParseException(t1,expected,tokenImage);
+			}
+		}while(counter!=0 && t.kind!=EOF);
+		addModule(moduleNameToken,moduleBodyToken,parameters);
+		
+	}
+}
+
+
+
+private void parameterValue(List parameterValues) : {Number n;String str;}{
+	n=number(){if (!getCurrentEnvironment().isSafeMode())parameterValues.add(n);}
+	|str=string(){if (!getCurrentEnvironment().isSafeMode())parameterValues.add(str);}
+}
+
+private void moduleCall() : {Token callToken;List parameterValues=new ArrayList();}{
+
+	<CALL><ID>{callToken=token;}(<LPAR>(parameterValue(parameterValues)(<COMMA>parameterValue(parameterValues))*)?<RPAR>)?
+	{if (!getCurrentEnvironment().isSafeMode()) doCall(callToken.image,callToken,parameterValues);}
+
+}
+
+
+
+
+
+private void multiObject(MultiSet<String> ms) : {String o;Number mul=1;Token beginObjToken,endObjToken;}{
+	
+	{
+		beginObjToken=token.next;
+	}
+	o=object()(<MUL>mul=number0())?
+	{
+		endObjToken=token;
+		try
+		{
+			if (!getCurrentEnvironment().isSafeMode())ms.add(o,mul.longValue());
+		}catch(Exception ex)
+		{
+			throwSemanticsException(ex.getMessage(),beginObjToken,endObjToken);
+		}
+	}
+}
+
+
+private byte charge() : {byte ch=(byte)0;}{
+	(<MINUS>{ch=(byte)-1;}|<PLUS>{ch=(byte)1;})
+	{
+		return ch;
+	}
+}
+
+private String labelString() : {String r="";Number n=null;}{
+   	(r=object()
+	|<NATURAL_NUMBER>{r=token.image;}
+	|<LBRACE>n=number(){if (!getCurrentEnvironment().isSafeMode())r=n.toString();}<RBRACE>)
+	{return r;}
+}
+
+private Label label() : {String r1=null,r2=null,r3=null;Label l=null;}{
+	
+	<QUOTE>r1=labelString()
+	(<COMMA>r2=labelString())?
+	(<STRING>{r3= token.image.substring(1,token.image.length()-1);})?
+	
+	{
+		if (!getCurrentEnvironment().isSafeMode())
+		{
+			if (r2!=null)
+				l = new Label(r1,r2);
+			else
+				l = new Label(r1);
+			expr=r3;
+		}
+		return l;
+	}
+}
+
+private Label parentLabel(CellLikeMembrane parentMembrane) : {String r1=null,r2=null;Label l=null;Token beginToken,endToken;}{
+	
+	<QUOTE>r1=labelString()
+	{beginToken=token;}
+	(<COMMA>r2=labelString())?
+	{
+		{endToken=token;}
+		if (!getCurrentEnvironment().isSafeMode())
+		{
+			if (parentMembrane!=null && !parentMembrane.getLabelObj().getEnvironmentID().equals(""))
+			{
+				if (r2!=null && !r2.equals(parentMembrane.getLabelObj().getEnvironmentID()))
+					throwSemanticsException("Invalid environment ID",beginToken,endToken);
+				r2=parentMembrane.getLabelObj().getEnvironmentID();
+			}
+			if (r2!=null)
+				l = new Label(r1,r2);
+			else
+				l = new Label(r1);
+		}
+		return l;
+	}
+}
+
+private Label rsquare() : {Label label;}{
+	<RSQUARE>label=label(){return label;}
+}
+
+
+private byte lsquare() : {byte ch=(byte)0;}{
+	(<OR>{ruleType="division";}|<DIV>{ruleType="budding";})?
+	(ch=charge())?<LSQUARE>{return ch;}
+}
+
+private CellLikeSkinMembrane cellLikeSkinMembrane() : {CellLikeMembrane m;}
+{
+	m=cellLikeMembrane(null)
+	{
+		return (CellLikeSkinMembrane)m;
+	}
+}
+
+private InnerRuleMembrane innerRuleMembrane() :
+{
+	byte ch;
+	Label label;
+	MultiSet<String> ms = new HashMultiSet<String>();
+}
+{
+	ch=lsquare()
+	(multiSet(ms))?
+	label=rsquare()
+	{return getCurrentEnvironment().isSafeMode()?null:new InnerRuleMembrane(label,ch,ms);}
+}
+
+
+private OuterRuleMembrane secondRightOuterRuleMembrane(Label label) : 
+{
+	byte ch;
+	List<InnerRuleMembrane> l = new ArrayList<InnerRuleMembrane>();
+	MultiSet<String> ms = new HashMultiSet<String>();
+	String obj;
+	InnerRuleMembrane im;
+	
+	
+}
+{
+	ch=lsquare()
+	(multiSet(ms))?
+	(im=innerRuleMembrane(){if (!getCurrentEnvironment().isSafeMode())l.add(im);})*
+	<RSQUARE>
+	(label=label())?
+	{return getCurrentEnvironment().isSafeMode()?null:new OuterRuleMembrane(label,ch,ms,l);}
+	
+}
+
+
+private OuterRuleMembraneWithDissolutionOption firstRightOuterRuleMembrane(Label label) :
+{
+	byte ch;
+	List<InnerRuleMembrane> l = new ArrayList<InnerRuleMembrane>();
+	MultiSet<String> ms = new HashMultiSet<String>();
+	InnerRuleMembrane im;
+	boolean dissolves=false;
+}
+{
+	ch=lsquare()
+	(dissolves=multiSetWithDissolutionOption(ms))?
+	(im=innerRuleMembrane(){if (!getCurrentEnvironment().isSafeMode())l.add(im);})*
+	<RSQUARE>
+	(label=label())?
+	{return getCurrentEnvironment().isSafeMode()?null:new OuterRuleMembraneWithDissolutionOption(label,ch,ms,l,dissolves);}
+}
+
+private List<InnerRuleMembrane> innerRuleMembranes() :
+{
+	List<InnerRuleMembrane> l = new ArrayList<InnerRuleMembrane>();
+	InnerRuleMembrane im;
+}
+{
+	(im=innerRuleMembrane(){if (!getCurrentEnvironment().isSafeMode())l.add(im);})*
+	{return l;}
+}
+
+
+private OuterRuleMembrane outerRuleMembrane() :
+{
+	byte ch;
+	Label label;
+	List<InnerRuleMembrane> l;
+	MultiSet<String> ms = new HashMultiSet<String>();
+	
+}
+{
+	ch=lsquare()
+	(multiSet(ms))?
+	l=innerRuleMembranes()
+	label=rsquare()
+	{return getCurrentEnvironment().isSafeMode()?null:new OuterRuleMembrane(label,ch,ms,l);}
+	
+}
+
+
+
+private CellLikeMembrane cellLikeMembrane(CellLikeMembrane parentMembrane) : 
+{
+	Label label;
+ 	byte ch;
+	Token initToken,init=null,end=null;
+	CellLikeMembrane m=null;
+	MultiSet<String> ms = new HashMultiSet<String>();
+}
+{
+	ch=lsquare()
+	{
+		initToken=token;
+		int counter=1;
+		Token t=token,t1;
+		do{
+			t1=t;
+			t=getNextToken();
+			if (t.kind==LSQUARE) counter ++;
+			if (t.kind==RSQUARE) counter --;
+			if (t.kind==EOF || t.kind==SEPARATOR)
+			{
+				int expected[][]= new int[1][1];
+				expected[0][0] = RSQUARE;
+				if (t.kind==SEPARATOR) token=t1;
+				throw new ParseException(t1,expected,tokenImage);
+			}
+			
+		}while(counter!=0 && t.kind!=EOF && t.kind!=SEPARATOR);
+	}
+	{init=token;}
+	label=parentLabel(parentMembrane)
+	{end=token;}
+	{
+		token=initToken;
+		jj_ntk=-1;
+		if (!getCurrentEnvironment().isSafeMode())
+		{
+			m = CellLikeMembraneFactory.getCellLikeMembrane(label,parentMembrane);
+			m.setCharge(ch);
+			ms=m.getMultiSet();
+		}
+		
+	}
+	(multiSet(ms))?
+	(cellLikeMembrane(m))*
+	rsquare()
+	(label())?	
+	{
+	      if (!getCurrentEnvironment().isSafeMode() && !label.getEnvironmentID().equals("")) 
+			addMembrane(label.getLabelID(),label.getEnvironmentID(),m,init,end);
+    		
+	return m;
+	}
+
+	
+}
+
+
+private boolean multiSetWithDissolutionOption(MultiSet<String> ms) : 
+{
+	boolean dissolves=false;
+}
+{
+	
+	((multiObject(ms)|<DISSOLVES>{dissolves=true;})
+
+	(<COMMA>(multiObject(ms)|<DISSOLVES>{dissolves=true;}))*
+	
+	|<EMPTY>(<COMMA><DISSOLVES>{dissolves=true;})?)
+	{return dissolves;}
+	
+
+}
+
+private void multiSet(MultiSet<String> ms) : {}{
+	(multiObject(ms)(<COMMA>multiObject(ms))*)
+	|<EMPTY>
+}
+
+
+private void multiSetAsig() : {MultiSet ms=new HashMultiSet<String>();boolean inc=false;String label="";String id=null;Token init=null,end=null;}{
+	<MULTISET><LPAR>{init=token;}label=labelString()(<COMMA>id=labelString())? {end=token;}<RPAR> (<INC>{inc=true;}|<ASIG>) multiSet(ms)
+	{
+		if (!getCurrentEnvironment().isSafeMode())
+		{
+			if (id==null)
+			{
+				if (!inc || !getPsystem().getInitialMultiSets().containsKey(label))
+					getPsystem().getInitialMultiSets().put(label,ms);
+				else		
+				{
+					MultiSet ms1=getPsystem().getInitialMultiSets().get(label);
+					ms1.addAll(ms);
+				}
+			}
+			else
+			{
+				addMultiSet(label,id,ms,inc,init,end);				
+			}
+		}
+	}
+}
+
+private void labelsList() : {String label;}
+{
+	label=labelString()
+	{
+		if (!getCurrentEnvironment().isSafeMode())
+		{
+			if (!isSpikingPsystem())
+				throwSemanticsException("Invalid initial configuration",token,token);
+			else
+			{
+				SpikingMembrane.buildMembrane
+				(label,0L,(SpikingMembraneStructure)getPsystem().getMembraneStructure(),computeEfficiencyAttributes);
+			}
+		}
+	
+	}
+	(
+		<COMMA>label=labelString()
+		{
+			if (!getCurrentEnvironment().isSafeMode())
+			{
+				if (!isSpikingPsystem())
+					throwSemanticsException("Invalid initial configuration specification",token,token);
+			else
+			{
+				SpikingMembrane.buildMembrane
+				(label,0L,(SpikingMembraneStructure)getPsystem().getMembraneStructure(),computeEfficiencyAttributes);
+			}
+		}
+	
+	}
+	)*
+}
+
+private void mout() : {}
+{
+
+<MEMB_OUT>
+(<ASIG>|<INC>)
+(mout_element()(<COMMA>mout_element())*)?
+
+}
+
+
+private void mout_element() : {String l;}{
+
+	l=labelString()
+	{
+		if (!getCurrentEnvironment().isSafeMode())
+		{
+			if (!isSpikingPsystem())
+				throwSemanticsException("Invalid sentence",token,token);
+			else
+			{
+				try
+				{
+					((SpikingMembraneStructure)getPsystem().getMembraneStructure()).setOutputMembrane(l,false);
+					writeInfo("Setting output membrane: "+l,4);				
+
+				}
+				catch(Exception ex)
+				{
+					throwSemanticsException(ex.getMessage(),token,token);
+				}	
+			}
+		}	
+	}
+}
+
+
+private void min() : {String l;}{
+	<MEMB_IN>
+	<ASIG>
+	l=labelString()
+	{
+		if (!getCurrentEnvironment().isSafeMode())
+		{
+			if (!isSpikingPsystem())
+				throwSemanticsException("Invalid sentence",token,token);
+			else
+			{
+				try
+				{
+					((SpikingMembraneStructure)getPsystem().getMembraneStructure()).setInputMembrane(l,false);
+					writeInfo("Setting input membrane: "+l,4);				
+
+				}
+				catch(Exception ex)
+				{
+					throwSemanticsException(ex.getMessage(),token,token);
+				}	
+			}
+		}	
+	}
+}
+
+private void mdict() : {}
+{
+
+<MDICT>
+(<ASIG>|<INC>)
+(mdict_element()(<COMMA>mdict_element())*)?
+
+}
+
+
+private void mdict_element() : {String l1,l2;}{
+
+	<LPAR>l1=labelString()<COMMA>l2=labelString()<RPAR>
+	{
+		if (!getCurrentEnvironment().isSafeMode())
+		{
+			if (!isSpikingPsystem())
+				throwSemanticsException("Invalid sentence",token,token);
+			else
+			{
+				try
+				{
+				((SpikingMembraneStructure)getPsystem().getMembraneStructure()).updateDictionary(l1,l2);
+				writeInfo("Updating dictionary: ("+l1+", "+l2+")",4);
+				}catch(Exception ex)
+				{
+					throwSemanticsException(ex.getMessage(),token,token);
+				}
+			}
+		}
+	}
+	
+
+
+}
+
+private void minst() : {}
+{
+
+<MINST>
+(<ASIG>|<INC>)
+(minst_element()(<COMMA>minst_element())*)?
+
+}
+
+private void minst_element() : {Number a,b;}{
+
+	<LPAR>a=number()<COMMA>b=number()<RPAR>
+	{
+		if (!getCurrentEnvironment().isSafeMode())
+		{
+			if (!isSpikingPsystem())
+				throwSemanticsException("Invalid sentence",token,token);
+			else
+			{
+				try
+				{
+
+				if( ( (double) a.longValue() ) != a.doubleValue())
+					throw new Exception("time parameter must can be cast to long");
+
+				if( ( (double) b.longValue() ) != b.doubleValue())
+					throw new Exception("spikes parameter must can be cast to long");
+
+				if(a.longValue() < 1L)
+					throw new Exception("time parameter must be greater or equal than one");
+
+				if(b.longValue() < 0L)
+					throw new Exception("time parameter must be greater or equal than zero");
+
+				((SpikingMembraneStructure)getPsystem().getMembraneStructure()).
+					getEnvironmentMembrane().getInputSequence().put(a.longValue(),b.longValue());
+				writeInfo("Updating input sequence: ("+a.longValue()+", "+b.longValue()+")",4);
+				}catch(Exception ex)
+				{
+					throwSemanticsException(ex.getMessage(),token,token);
+				}
+			}
+		}
+	}
+	
+
+
+}
+
+private void mseq() : {Number a;}{
+	<MSEQ>
+	<ASIG>
+	a=number()
+	{
+		if (!getCurrentEnvironment().isSafeMode())
+		{
+			if (!isSpikingPsystem())
+				throwSemanticsException("Invalid sentence",token,token);
+			else
+			{
+				try
+				{
+				
+				if( ( (double) a.longValue() ) != a.doubleValue())
+					throw new Exception("Sequential Mode must can be cast to int");
+
+				if(a.longValue() < 0L || a.longValue() > 5L)
+					throw new Exception("Sequential Mode must be in [0,1,2,3,4,5]");
+	
+				((SpikingMembraneStructure)getPsystem().getMembraneStructure()).
+					setSequentialMode((int) a.longValue());
+				writeInfo("Updating Sequential Mode: ("+a.longValue()+")",4);
+				}catch(Exception ex)
+				{
+					throwSemanticsException(ex.getMessage(),token,token);
+				}
+			}
+		}
+	}
+	
+
+
+}
+
+private void masynch() : {Number a;}{
+	<MASYNCH>
+	<ASIG>
+	a=number()
+	{
+		if (!getCurrentEnvironment().isSafeMode())
+		{
+			if (!isSpikingPsystem())
+				throwSemanticsException("Invalid sentence",token,token);
+			else
+			{
+				try
+				{
+				
+				if( ( (double) a.longValue() ) != a.doubleValue())
+					throw new Exception("Asynch Mode must can be cast to int");
+
+				if(a.longValue() < 0L || a.longValue() > 2L)
+					throw new Exception("Asynch Mode must be in [0,1,2]");
+	
+				((SpikingMembraneStructure)getPsystem().getMembraneStructure()).
+					setAsynchMode((int) a.longValue());
+				writeInfo("Updating Asynch Mode: ("+a.longValue()+")",4);
+				}catch(Exception ex)
+				{
+					throwSemanticsException(ex.getMessage(),token,token);
+				}
+			}
+		}
+	}
+	
+
+
+}
+
+private void mvalid() : {}
+{
+
+<MVALID>
+(<ASIG>|<INC>)
+(mvalid_element()(<COMMA>mvalid_element())*)?
+
+}
+
+private void mvalid_element() : {String l;Number n;}{
+
+	<LPAR>l=labelString()<COMMA>n=number()<RPAR>
+	{
+		if (!getCurrentEnvironment().isSafeMode())
+		{
+			if (!isSpikingPsystem())
+				throwSemanticsException("Invalid sentence",token,token);
+			else
+			{
+				try
+				{
+
+				if( ( (double) n.longValue() ) != n.doubleValue())
+					throw new Exception("Asynch Mode must can be cast to long");
+
+				if(n.longValue() < 0L)
+					throw new Exception("Valid value must greater or equal than zero");
+
+				((SpikingMembraneStructure)getPsystem().getMembraneStructure()).
+					updateAsynchValidConfiguration(l,n.longValue());
+				writeInfo("Updating Asynch Valid Configuration: ("+l+", "+n.longValue()+")",4);
+				}catch(Exception ex)
+				{
+					throwSemanticsException(ex.getMessage(),token,token);
+				}
+			}
+		}
+	}
+	
+
+
+}
+
+private void marcs() : {}
+{
+
+<MARCS>
+(<ASIG>|<INC>)
+(marcs_element()(<COMMA>marcs_element())*)?
+
+}
+
+
+private void marcs_element() : {String l1,l2;}{
+
+	<LPAR>l1=labelString()<COMMA>l2=labelString()<RPAR>
+	{
+		if (!getCurrentEnvironment().isSafeMode())
+		{
+			if (!isSpikingPsystem())
+				throwSemanticsException("Invalid sentence",token,token);
+			else
+			{
+				try
+				{
+				((SpikingMembraneStructure)getPsystem().getMembraneStructure()).connect(l1,l2);
+				writeInfo("Connecting arcs: ("+l1+", "+l2+")",4);
+				}catch(Exception ex)
+				{
+					throwSemanticsException(ex.getMessage(),token,token);
+				}
+			}
+		}
+	}
+	
+
+
+}
+
+private String func_head() : {String functionName;List<String>parameters=new ArrayList<String>();String result=new String();}{
+
+	<ID>{functionName=token.image;}
+	<LPAR>
+	(param(parameters)(<COMMA>param(parameters))*)?
+	<RPAR>
+	{
+		if (!getCurrentEnvironment().isSafeMode())
+		{
+			if (!isSpikingPsystem())
+				throwSemanticsException("Invalid sentence",token,token);
+			else
+			{
+				try
+				{
+					
+				int size = parameters.size();
+				
+				int i = 0;
+				
+				String varList = "";
+
+				while(i < size)
+				{
+					String var = parameters.get(i).toLowerCase();
+					
+					int aux = i+1;							
+					String comp = new String("x" + aux);
+					
+					if(!var.equals(comp))
+						throwSemanticsException("Incorrect variable specification",token,token);
+						
+					varList += var;
+					
+					i++;
+					
+					if(i < size)
+						varList += ",";
+					
+				}
+				
+				
+				result = functionName + "(" + varList + ")";
+
+				writeInfo("Reading function name: " + result + "...",4);
+				
+				return result;
+
+				}catch(Exception ex)
+				{
+					throwSemanticsException(ex.getMessage(),token,token);
+				}
+			}
+			
+			return result;
+		}
+		
+		return result;
+	}
+}
+
+private String func_body() : {String aux; String result=new String();}{
+
+	aux=string0()
+	{
+		if (!getCurrentEnvironment().isSafeMode())
+		{
+			if (!isSpikingPsystem())
+				throwSemanticsException("Invalid sentence",token,token);
+			else
+			{
+				result = aux.toLowerCase();
+				
+				return result;
+				
+			}
+			
+			return result;
+		}
+		
+		return result;
+	}
+}
+
+private void mastfunc() : {String name; String body;}
+{
+<MASTFUNC> <ASIG> <LPAR> name=func_head() <COMMA> body=func_body() <RPAR>
+ 
+ 	{
+		if (!getCurrentEnvironment().isSafeMode())
+		{
+			if (!isSpikingPsystem())
+				throwSemanticsException("Invalid sentence",token,token);
+			else
+			{
+				try
+				{
+		
+				SpikingMembraneStructure structure = (SpikingMembraneStructure)getPsystem().getMembraneStructure();
+				
+				if(!body.startsWith(name))
+					throw new Exception("the definition of the function must start with the head specified.");
+				
+				structure.addAstrocyteFunction(name,body,name.split(",").length);
+				
+				writeInfo("Adding astrocyte function...",4);
+
+				}catch(Exception ex)
+				{
+					throwSemanticsException(ex.getMessage(),token,token);
+				}
+			}
+		}
+	}
+ 
+}
+
+
+private void mast_binder() : 
+{
+String label; 
+List<Pair<String,String>> lista = new ArrayList<Pair<String,String>>();
+List<Pair<String,String>> listaCtrl = new ArrayList<Pair<String,String>>(); 
+SortedSet<Long> listaTh = new TreeSet<Long>();
+List<String> listaFunc = new ArrayList<String>();
+Number t;
+String r,s; boolean update,cOpFlag;
+}
+
+{
+
+<MASTB> <ASIG> 
+<LPAR>
+label=labelString()<COMMA> 
+list_arcs(lista)<COMMA>
+list_arcs(listaCtrl)<COMMA>
+r=labelString()<COMMA>
+{
+
+  				cOpFlag = false;
+
+  				try
+  				{
+  				  
+				if(r.toLowerCase().equals("true") == true)
+					cOpFlag = true;
+				else if (r.toLowerCase().equals("false") == true)
+					cOpFlag = false;
+				else
+					throw new Exception("The update potential parameter must be boolean");
+				
+				}catch(Exception ex)
+				{
+					throwSemanticsException(ex.getMessage(),token,token);
+				}
+				
+  
+}
+list_thresholds(listaTh)<COMMA>
+list_functions(listaFunc,lista.size(),cOpFlag)<COMMA>
+t=number()<COMMA>
+s=labelString()
+<RPAR>
+
+	{
+		if (!getCurrentEnvironment().isSafeMode())
+		{
+			if (!isSpikingPsystem())
+				throwSemanticsException("Invalid sentence",token,token);
+			else
+			{
+				try
+				{
+
+				if( ( (double) t.longValue() ) != t.doubleValue())
+					throw new Exception("t must can be cast to long");
+					
+				if(t.longValue() < 0L)
+					throw new Exception("t must be a natural number");					
+			
+				if(s.toLowerCase().equals("true") == true)
+					update = true;
+				else if (s.toLowerCase().equals("false") == true)
+					update = false;
+				else
+					throw new Exception("The update potential parameter must be boolean");
+
+				SpikingMembraneStructure structure = (SpikingMembraneStructure)getPsystem().getMembraneStructure();
+				
+				if(existsBuddingOrDivisionRules)
+					throw new Exception("Can't add a Binder Astrocyte in presence of budding or division rules.");
+				else
+					existsBinderAstrocytes = true;
+				
+				Astrocyte ast = new BinderAstrocyte(label,lista,listaCtrl,cOpFlag,listaTh,listaFunc,t.longValue(),update,structure);
+				
+				writeInfo("Adding astrocyte...",4);
+
+				}catch(Exception ex)
+				{
+					throwSemanticsException(ex.getMessage(),token,token);
+				}
+			}
+		}
+	}
+
+}
+
+private void mast_wang() : {String label; List<Pair<String,String>> lista = new ArrayList<Pair<String,String>>(); Number t;}
+{
+
+<MASTW> <ASIG> 
+<LPAR>
+label=labelString()<COMMA> 
+list_arcs(lista)<COMMA> 
+t=number()
+<RPAR>
+
+	{
+		if (!getCurrentEnvironment().isSafeMode())
+		{
+			if (!isSpikingPsystem())
+				throwSemanticsException("Invalid sentence",token,token);
+			else
+			{
+				try
+				{
+
+			
+				if( ( (double) t.longValue() ) != t.doubleValue())
+					throw new Exception("t must can be cast to long");
+
+				if(t.longValue() < 0L)
+					throw new Exception("t must be a natural number");
+				
+				SpikingMembraneStructure structure = (SpikingMembraneStructure)getPsystem().getMembraneStructure();
+				
+				Astrocyte ast = new WangAstrocyte(label,lista,t.longValue(),structure);
+				
+				writeInfo("Adding astrocyte...",4);
+
+				}catch(Exception ex)
+				{
+					throwSemanticsException(ex.getMessage(),token,token);
+				}
+			}
+		}
+	}
+
+}
+
+private void list_arcs(List<Pair<String,String>> list) : {}
+{
+	<LBRACE>(list_arcs_element(list)(<COMMA>list_arcs_element(list))*)?<RBRACE>
+
+
+}
+
+private void list_arcs_element(List<Pair<String,String>> list) : {String l1,l2; Pair<String,String> p;}
+{
+	<LPAR>l1=labelString()<COMMA>l2=labelString()<RPAR>
+	{
+		if (!getCurrentEnvironment().isSafeMode())
+		{
+			if (!isSpikingPsystem())
+				throwSemanticsException("Invalid sentence",token,token);
+			else
+			{
+				try
+				{
+				p = new Pair<String,String>(l1,l2);
+				list.add(p);
+				writeInfo("Building arc: ("+l1+", "+l2+")",4);
+				}catch(Exception ex)
+				{
+					throwSemanticsException(ex.getMessage(),token,token);
+				}
+			}
+		}
+	}
+	
+
+
+}
+
+private void list_thresholds(SortedSet<Long> list) : {}
+{
+
+	<LBRACE>(list_thresholds_element(list)(<COMMA>list_thresholds_element(list))*)?<RBRACE>
+
+}
+
+private void list_thresholds_element(SortedSet<Long> list) : {Number t;}
+{
+		t=number()
+		{
+		if (!getCurrentEnvironment().isSafeMode())
+		{
+			if (!isSpikingPsystem())
+				throwSemanticsException("Invalid sentence",token,token);
+			else
+			{
+				try
+				{
+			
+				if( ( (double) t.longValue() ) != t.doubleValue())
+					throw new Exception("t must can be cast to long");
+
+				if(t.longValue() < 0L)
+					throw new Exception("t must be a natural number");
+
+				if(!list.isEmpty() && t.longValue() <= list.last())
+					throw new Exception("An ordered set of thresholds is required.");
+				
+				writeInfo("Adding threshold...",4);
+
+				list.add(t.longValue());
+
+				}catch(Exception ex)
+				{
+					throwSemanticsException(ex.getMessage(),token,token);
+				}
+			}
+		}
+	}
+
+}
+
+
+private void list_functions(List<String> list, int size, boolean cOpFlag) : {}
+{
+
+	<LBRACE>(list_functions_element(list,size,cOpFlag)(<COMMA>list_functions_element(list,size,cOpFlag))*)?<RBRACE>
+
+}
+
+private void list_functions_element(List<String> list, int size, boolean cOpFlag) : {String fName;}
+{
+		fName=func_head()
+		{
+		if (!getCurrentEnvironment().isSafeMode())
+		{
+			if (!isSpikingPsystem())
+				throwSemanticsException("Invalid sentence",token,token);
+			else
+			{
+				try
+				{
+			
+				int numParams = fName.split(",").length;
+
+				if(!fName.equals("pol()") && !fName.equals("sub()"))
+				{
+				  
+					if(cOpFlag == true && numParams != 1)
+						throw new Exception("Number of function params must be equal to 1 in this case");
+					else if(cOpFlag == false && size == 1 && numParams != 1)
+						throw new Exception("Number of function params must be equal to 1 in this case");
+					else if (cOpFlag == false && size > 1 && numParams != size - 1)
+						throw new Exception("Number of function params must be equal to arcs number");
+					
+				}
+
+				writeInfo("Adding function...",4);
+				
+				list.add(fName);
+
+				}catch(Exception ex)
+				{
+					throwSemanticsException(ex.getMessage(),token,token);
+				}
+			}
+		}
+	}
+
+}
+
+private void moutres_binary() : {}{
+	<MOUTRES_BINARY>
+	{
+		if (!getCurrentEnvironment().isSafeMode())
+		{
+			if (!isSpikingPsystem())
+				throwSemanticsException("Invalid sentence",token,token);
+			else
+			{
+				try
+				{
+				((SpikingMembraneStructure)getPsystem().getMembraneStructure()).
+					setShowBinarySequence(true);
+				writeInfo("Setting Binary Sequence to be shown... ",4);
+				}catch(Exception ex)
+				{
+					throwSemanticsException(ex.getMessage(),token,token);
+				}
+			}
+		}
+	}
+	
+
+}
+
+private void moutres_summatories() : {}{
+	<MOUTRES_SUMMATORIES>
+	{
+		if (!getCurrentEnvironment().isSafeMode())
+		{
+			if (!isSpikingPsystem())
+				throwSemanticsException("Invalid sentence",token,token);
+			else
+			{
+				try
+				{
+				((SpikingMembraneStructure)getPsystem().getMembraneStructure()).
+					setShowSummatories(true);
+				writeInfo("Setting Summatories to be shown... ",4);
+				}catch(Exception ex)
+				{
+					throwSemanticsException(ex.getMessage(),token,token);
+				}
+			}
+		}
+	}
+	
+
+}
+
+
+private void moutres_natural() : {Number n; String s1,s2;boolean b1,b2;ArrayList array;}{
+	<MOUTRES_NATURAL><LPAR>n=number()<COMMA>s1=labelString()<COMMA>s2=labelString()<RPAR>
+	{
+		if (!getCurrentEnvironment().isSafeMode())
+		{
+			if (!isSpikingPsystem())
+				throwSemanticsException("Invalid sentence",token,token);
+			else
+			{
+				try
+				{
+
+				if( ( (double) n.longValue() ) != n.doubleValue())
+					throw new Exception("k must can be cast to long");
+
+				if(n.longValue() < 2L)
+					throw new Exception("k must be greater or equal to two");
+
+				if(s1.toLowerCase().equals("true") == true)
+					b1 = true;
+				else if (s1.toLowerCase().equals("false") == true)
+					b1 = false;
+				else
+					throw new Exception("The strong parameter must be boolean");
+
+				if(s2.toLowerCase().equals("true") == true)
+					b2 = true;
+				else if (s2.toLowerCase().equals("false") == true)
+					b2 = false;
+				else
+					throw new Exception("The alternate parameter must be boolean");
+
+		
+				array = new ArrayList();
+				array.add(n.longValue());
+				array.add(b1);
+				array.add(b2);
+
+				((SpikingMembraneStructure)getPsystem().getMembraneStructure()).
+					setShowNaturalSequence(array);
+				writeInfo("Setting Natural Sequence to be shown...",4);
+
+				}catch(Exception ex)
+				{
+					throwSemanticsException(ex.getMessage(),token,token);
+				}
+			}
+		}
+	}
+	
+
+
+}
+
+
+private void initConfiguration() : {CellLikeSkinMembrane m=null;}{
+	<MU>
+	(<ASIG>|<INC>)
+	(
+	 m=cellLikeSkinMembrane()
+	|labelsList()
+	)
+	{
+		if (!getCurrentEnvironment().isSafeMode() && m!=null)
+		{
+				
+			getPsystem().setMembraneStructure(m);
+		}
+	}
+}
+
+private Number priority() : 
+{
+	Number n;
+}
+{
+	<LPAR>
+	n=number()
+	<RPAR>
+	{return n;}
+}
+
+private void rule() : 
+{
+	MultiSet<String> leftMultiSet=new HashMultiSet<String>();
+	MultiSet<String> rightMultiSet=new HashMultiSet<String>();
+	MultiSet<String> leftOuterRuleMembraneMultiSet=new HashMultiSet<String>();
+	MultiSet<String> rightOuterRuleMembraneMultiSet=new HashMultiSet<String>();
+	List<InnerRuleMembrane> leftInner,rightInner;
+	String errorCauses="";
+	OuterRuleMembraneWithDissolutionOption firstRightOuterRuleMembrane=null;
+	OuterRuleMembrane leftOuterRuleMembrane=null,secondRightOuterRuleMembrane=null;
+	Number ratio=0,priority=0;	
+	boolean hasPriority=false,hasRatio=false;
+	Token beginRuleToken,endRuleToken;
+	IRule r;
+	byte ch;
+	Label label;
+	boolean dissolves=false,doubleArrow=false;
+}
+{
+	{beginRuleToken=token.next;}
+	((priority=priority(){hasPriority=true;})?
+	(multiSet(leftMultiSet))?
+
+	ch=lsquare()
+	(multiSet(leftOuterRuleMembraneMultiSet))?
+	leftInner=innerRuleMembranes()
+	(label=rsquare()
+         (<ARROW>|<DOUBLE_ARROW>{doubleArrow=true;}){if (!getCurrentEnvironment().isSafeMode())firstRightOuterRuleMembrane=new OuterRuleMembraneWithDissolutionOption(label,ch,true);}
+	 (multiSet(rightMultiSet))?
+	 (firstRightOuterRuleMembrane=firstRightOuterRuleMembrane(label)
+	 (secondRightOuterRuleMembrane=secondRightOuterRuleMembrane(label))?
+	 (multiSet(rightMultiSet))?)?
+	|<ARROW>
+	 (dissolves=multiSetWithDissolutionOption(rightOuterRuleMembraneMultiSet))?
+	 rightInner=innerRuleMembranes()
+	 label=rsquare()
+	(<DEBUG>string())?
+{if (!getCurrentEnvironment().isSafeMode())firstRightOuterRuleMembrane=new OuterRuleMembraneWithDissolutionOption(label,ch,rightOuterRuleMembraneMultiSet,rightInner,dissolves);})	
+	
+
+	(<DOUBLE_COLON>ratio=number(){hasRatio=true;})?)
+	{
+		if (!getCurrentEnvironment().isSafeMode())
+		{
+			endRuleToken=token;
+			leftOuterRuleMembrane=new OuterRuleMembrane(label,ch,leftOuterRuleMembraneMultiSet,leftInner);
+			LeftHandRule leftHandRule;
+			RightHandRule rightHandRule;
+			if (hasPriority && hasRatio)
+				throwSemanticsException("A rule cannot define a ratio and a priority at once",beginRuleToken,endRuleToken);
+			leftHandRule = new LeftHandRule(leftOuterRuleMembrane,leftMultiSet);
+			if (secondRightOuterRuleMembrane==null)
+				rightHandRule = new RightHandRule(firstRightOuterRuleMembrane,rightMultiSet);
+			else
+				rightHandRule = new RightHandRule(firstRightOuterRuleMembrane,secondRightOuterRuleMembrane,rightMultiSet);
+			try
+			{
+				AbstractRuleFactory factory=getPsystem().getAbstractPsystemFactory().getRuleFactory();
+				if (doubleArrow)
+				   r = factory.createDoubleCommunicationRule(firstRightOuterRuleMembrane
+							.dissolves(), leftHandRule, rightHandRule);
+				else
+            	if (hasPriority)
+					r = factory.createPriorityRule(firstRightOuterRuleMembrane
+							.dissolves(), leftHandRule, rightHandRule, priority
+							.intValue());
+				 else if (getPsystem().getAbstractPsystemFactory().getModelName()
+           						     .equals("spiking_psystems"))
+                                {
+                                	
+                                	if(existsBinderAstrocytes && ruleType != null && ( ruleType.equals("budding") || ruleType.equals("division") ))
+                                		throw new Exception("Can't add a budding or division rule in presence of Binder Astrocytes");
+                                	else
+                                		existsBuddingOrDivisionRules = true;
+                                	
+                                	String type=ruleType;
+                                	r = SpikingRule.buildRule(leftHandRule, rightHandRule, expr, ratio.longValue(), type,computeEfficiencyAttributes);
+                                	ruleType = null;
+                                }
+				else if (hasRatio) {
+					r = factory.createConstantRule(firstRightOuterRuleMembrane
+							.dissolves(), leftHandRule, rightHandRule, ratio
+							.floatValue());
+					
+					if (getPsystem().getAbstractPsystemFactory().getModelName()
+							.equals("stochastic") &&
+							!noGeneStringsCheckRule.checkRule(r))
+						r = (IStochasticRule)r;
+					
+					if (getPsystem().getAbstractPsystemFactory().getModelName()
+							.equals("probabilistic")) {
+						if (ratio.floatValue() == 0) {
+							writeWarning("Rule ignored: " + r, beginRuleToken,
+									endRuleToken);
+							r = null;
+						}
+					}
+				} else
+					r = factory.createBasicRule(firstRightOuterRuleMembrane
+							.dissolves(), leftHandRule, rightHandRule);
+
+				if (r != null) {
+					
+					if (!getPsystem().getRules().checkRule(r)) {
+						errorCauses = getPsystem().getRules().getCheckRule()
+								.getCausesString();
+						{
+							if (true)
+								throw new Exception("Rule doesn't match the \""
+										+ getPsystem()
+												.getAbstractPsystemFactory()
+												.getModelName()
+										+ "\" specification");
+						}
+					}
+
+					if (getPsystem().getRules().contains(r))
+						writeWarning("Repeated rule: " + r, beginRuleToken,
+								endRuleToken);
+					else {
+						r.setRuleId(++ruleCounter);
+						writeInfo("Adding rule: " + r, 4);
+						getPsystem().addRule(r);
+					}
+				}
+			}
+			catch(Exception ex)
+			{
+				throwSemanticsException(ex.getMessage(),beginRuleToken,endRuleToken,errorCauses);
+			}		
+		}
+			
+	}
+}
+
+private void assignment() : {String var,str;Number n;}{
+	var=stringVariable()<ASIG>str=string(){getCurrentEnvironment().setVariable(var,str);}
+	|var=numericVariable()<ASIG>n=number(){getCurrentEnvironment().setVariable(var,n);}
+}
+
+
+
+private Range range(Stack<Token>ranges) : 
+{
+	Number n1=null,n2=null;
+	boolean op1=Range.LESS_OR_EQUAL_OPERATION,op2=Range.LESS_OR_EQUAL_OPERATION,diff=false;
+	String variable=null;
+	Token rangeToken;
+	 
+}
+{
+	{rangeToken=token;}
+	
+	
+	n1=number()
+	(
+		<DIFF>{diff=true;}
+		|
+		(<LESS_THAN>{op1=Range.LESS_OPERATION;}|<LESS_OR_EQUAL_THAN>)
+		<ID>{variable=token.image;}
+		(<LESS_THAN>{op2=Range.LESS_OPERATION;}|<LESS_OR_EQUAL_THAN>)
+	)
+
+	n2=number()
+	
+	
+	{
+		if (ranges!=null)
+		{
+			if (!diff) 
+				ranges.push(rangeToken);
+			else
+				ranges.add(0,rangeToken);
+		
+		}
+
+		return getCurrentEnvironment().isSafeMode()?null:new Range(n1,op1,variable,op2,n2);
+	}
+	
+
+}
+
+
+
+
+private void sentence() : 
+{
+	Token sentenceToken;
+	Stack<Token>ranges=new Stack<Token>();
+
+}
+{
+	try
+	{
+		{
+			getCurrentEnvironment().incDepthLevel();
+			sentenceToken=token;
+			getCurrentEnvironment().enableSafeMode();
+		}
+		instruction()
+		{
+			getCurrentEnvironment().decDepthLevel();
+		}
+		(<COLON>range(ranges)(<COMMA>range(ranges))*)?
+		<SEPARATOR>
+		{
+			doSentence(ranges,sentenceToken,getCurrentEnvironment(),true);
+		}
+					
+		
+
+	}
+	catch(ParseException ex)
+	{
+		getCurrentEnvironment().enableSafeMode();
+		writeError(ex);
+		Token t;
+		do
+		{
+			 t=getNextToken();
+		}while(t.kind!=SEPARATOR && t.kind!=EOF);	
+	}
+}
+
+
+
+private void instruction() : 
+{
+
+
+}{ 
+
+
+	moduleCall()
+	|<LET>assignment()
+	|initConfiguration()
+	|marcs()
+	|mdict()
+	|minst()
+	|mseq()
+	|masynch()
+	|mvalid()
+	|min()
+	|mout()
+	|multiSetAsig()
+	|firstMultiSet()
+	|secondMultiSet()
+	|rule()
+	|<LBRACE>(sentence())+<RBRACE>
+	|moutres_binary()
+	|moutres_summatories()
+	|moutres_natural()
+	|mast_wang()
+	|mast_binder()
+	|mastfunc()
+}
+
+
+
+private void grammar() : {}{
+
+		{getCurrentEnvironment().disableSafeMode();}
+		variantDef()
+		((<LET>)?assignment()<SEPARATOR>|moduleDef())*
+		<EOF>
+		{
+		   if (getPsystem().getAbstractPsystemFactory()==null)
+    			throwSemanticsException("Undefined P system model");
+		   doCall("MAIN");
+		}
+
+		
+	
+}
+
+private void firstMultiSet() : {boolean inc=false; MultiSet<String> ms = new HashMultiSet<String>();}
+{
+	<FIRST_MULTISET>(<INC>{inc=true;}|<ASIG>)multiSet(ms)
+	{
+		if (!getCurrentEnvironment().isSafeMode())
+		{
+			if (inc)
+				getPsystem().getFirstMultiSet().addAll(ms);
+			else
+				getPsystem().setFirstMultiSet(ms);
+		}
+	}
+
+}
+
+private void secondMultiSet() : {boolean inc=false; MultiSet<String> ms = new HashMultiSet<String>();}
+{
+	<SECOND_MULTISET>(<INC>{inc=true;}|<ASIG>)multiSet(ms)
+	{
+		if (!getCurrentEnvironment().isSafeMode())
+		{
+			if (inc)
+				getPsystem().getSecondMultiSet().addAll(ms);
+			else
+				getPsystem().setSecondMultiSet(ms);
+		}
+	}
+
+}
