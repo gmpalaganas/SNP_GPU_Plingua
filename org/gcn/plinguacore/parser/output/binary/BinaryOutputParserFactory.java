@@ -41,6 +41,7 @@ public class BinaryOutputParserFactory extends OutputParser {
 	@Override
 	public final boolean parse(Psystem psystem, OutputStream stream) {
 		// TODO Auto-generated method stub
+        //
 		
 		if (psystem==null)
 			return false;
@@ -51,6 +52,11 @@ public class BinaryOutputParserFactory extends OutputParser {
 		if (psystem.getAbstractPsystemFactory().getModelName().equals(
 		"probabilistic"))
 			return (new ProbabilisticBinaryOutputParser()).parse(psystem,stream);
+        // SNP
+        if (psystem.getAbstractPsystemFactory().getModelName().equals(
+                    "spiking_psystems")){
+            return (new SpikingBinaryOutputParser()).parse(psystem,stream);
+        }
 		else
 		return false;
 	}

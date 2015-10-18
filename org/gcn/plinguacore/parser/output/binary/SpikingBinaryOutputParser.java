@@ -30,6 +30,7 @@ import org.gcn.plinguacore.util.psystem.membrane.MembraneStructure;
 
 import org.gcn.plinguacore.util.psystem.rule.IRule;
 import org.gcn.plinguacore.util.psystem.rule.spiking.SpikingRule;
+import org.gcn.plinguacore.util.psystem.rule.spiking.SpikingRuleBlock;
 
 import org.gcn.plinguacore.util.psystem.spiking.membrane.SpikingEnvironment;
 import org.gcn.plinguacore.util.psystem.spiking.membrane.SpikingMembrane;
@@ -55,13 +56,13 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
 
     private List<Integer> spikes;
 
-    private List<SpikingRule> spikingRules;
+    private List<SpikingRuleBlock> spikingRules;
 
     public SpikingBinaryOutputParser(){
 
         neurons = new LinkedHashMap<String,Integer>();
         spikes = new ArrayList<Integer>();
-        spikingRules = new ArrayList<SpikingRule>();
+        spikingRules = new ArrayList<SpikingRuleBlock>();
 
     }
 
@@ -72,8 +73,10 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
         spikingRules.clear();
 
         for(IRule rule : getPsystem().getRules()){
-        
-            spikingRules.add((SpikingRule)rule);
+
+            SpikingRuleBlock ruleBlock = new SpikingRuleBlock((SpikingRule)rule);
+            spikingRules.add(ruleBlock);
+            System.out.println(ruleBlock.toString());
 
         }
 
@@ -108,8 +111,8 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
     public void writeSpikingRules() throws IOException{
         //TODO write spiking rules according to format
 
-        for(SpikingRule rule: spikingRules){
-            getStream().writeBytes(rule.getRegExp().toString());
+        for(SpikingRuleBlock rule: spikingRules){
+           // getStream().writeBytes(rule.getRegExp().toString());
         }
         
     }
@@ -125,6 +128,7 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
     }
 
     public void writeFile() throws IOException{
+        readRules();
         writeHeader();
         writeSpikes();
         writeSpikingRules();
@@ -139,5 +143,4 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
     public byte getFileId(){
         return 0x31;
     }
-
 }
