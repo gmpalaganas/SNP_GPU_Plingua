@@ -76,7 +76,6 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
 
             SpikingRuleBlock ruleBlock = new SpikingRuleBlock((SpikingRule)rule);
             spikingRules.add(ruleBlock);
-            System.out.println(ruleBlock.toString());
 
         }
 
@@ -84,6 +83,10 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
 
     public void writeHeader() throws IOException{
         //TODO write header according to format
+        System.out.println(0xAF);
+        System.out.println(0x12);
+        System.out.println(0xFB);
+
         getStream().write(0xAF);
         getStream().write(0x12);
         getStream().write(0xFB);
@@ -91,28 +94,34 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
 
     public void writeSubHeader() throws IOException{
         SpikingMembraneStructure structure = (SpikingMembraneStructure)getPsystem().getMembraneStructure();
-        List<SpikingMembrane> neurons = (ArrayList<SpikingMembrane>)structure.getAllMembranes();
+
         //String reserved Characters
-        
-        int neuronCount = neurons.size();
+        int neuronCount = structure.getAllMembranes().size();
         int ruleCount = spikingRules.size();
 
+        System.out.println("Number of Neurons (Including Environment): " + neuronCount);
+        System.out.println("Number of Rules: " + ruleCount);
 
         getStream().write(neuronCount);
         getStream().write(ruleCount);
         
     }
 
-    public void writeSpikes() throws IOException{
-        //TODO write spikes according to format
-        return;
-    }
-
     public void writeSpikingRules() throws IOException{
         //TODO write spiking rules according to format
 
         for(SpikingRuleBlock rule: spikingRules){
-           // getStream().writeBytes(rule.getRegExp().toString());
+            System.out.println(rule.toString());
+            if(rule.getRegExp().length() == 0)
+                getStream().writeByte(0);
+            else
+                getStream().writeBytes(rule.getRegExp());
+            getStream().writeByte(rule.getConsumedSpikes());
+        }
+
+        for(SpikingRuleBlock rule: spikingRules){
+            getStream().writeByte(rule.getProducedSpikes());
+            getStream().writeByte(rule.getDelay());
         }
         
     }
@@ -129,11 +138,15 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
 
     public void writeFile() throws IOException{
         readRules();
+        System.out.println("===HEADER===");
         writeHeader();
-        writeSpikes();
+        System.out.println("===SUB-HEADER===");
+        writeSubHeader();
+        System.out.println("===RULES===");
         writeSpikingRules();
         writeLabels();
         writeNeurons();
+        System.out.println("===END===");
     }
 
     public ByteOrder getByteOrder(){
