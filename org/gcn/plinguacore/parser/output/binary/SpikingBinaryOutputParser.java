@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Iterator;
 
 import org.gcn.plinguacore.simulator.spiking.SpikingSimulator;
 
@@ -31,6 +32,8 @@ import org.gcn.plinguacore.util.psystem.membrane.MembraneStructure;
 import org.gcn.plinguacore.util.psystem.rule.IRule;
 import org.gcn.plinguacore.util.psystem.rule.spiking.SpikingRule;
 import org.gcn.plinguacore.util.psystem.rule.spiking.SpikingRuleBlock;
+
+import org.gcn.plinguacore.util.psystem.spiking.SpikingPsystem;
 
 import org.gcn.plinguacore.util.psystem.spiking.membrane.SpikingEnvironment;
 import org.gcn.plinguacore.util.psystem.spiking.membrane.SpikingMembrane;
@@ -104,8 +107,39 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
 
         getStream().write(neuronCount);
         getStream().write(ruleCount);
+
+        writeInitialConfiguration();
         
     }
+
+    public void writeInitialConfiguration() throws IOException{
+
+        SpikingPsystem psystem = (SpikingPsystem)getPsystem();
+        Configuration config = psystem.getFirstConfiguration();
+        
+        MembraneStructure struct = config.getMembraneStructure();
+        Iterator<? extends Membrane> it = struct.getAllMembranes().iterator(); 
+        
+        //Skip Envinronment
+        it.next();
+
+        String initConfig = "Initial Configuration: {";
+
+        while(it.hasNext()){
+            int spikes = (int)it.next().getMultiSet().count("a"); 
+            getStream().writeByte(spikes);
+            initConfig += spikes;
+            if(it.hasNext())
+                initConfig += ", ";
+        }
+
+        initConfig += "}";
+
+        System.out.println(initConfig);
+
+
+    }
+
 
     public void writeSpikingRules() throws IOException{
         //TODO write spiking rules according to format
