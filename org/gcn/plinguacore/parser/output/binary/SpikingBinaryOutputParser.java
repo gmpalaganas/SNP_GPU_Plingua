@@ -191,26 +191,23 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
         
         int[][] matrix = structure.getMatrixRepresentation();
 
-        String binary = "";
         
         System.out.println("Matrix Representation");
         for(int i = 0; i < size; i++){
+            String binary = "";
+
             for(int j = 0; j < size; j++){
                 binary += Integer.toString(matrix[i][j]);
-                
+  
                 String out = Integer.toString(matrix[i][j]);
                 out += (j < size - 1)?",":"";
                 System.out.print(out);
             }
-            System.out.println("");
+
+            int intRepr = Integer.parseInt(binary,2);
+            getStream().writeLong(intRepr);
+            System.out.println(" Integer Repr: " + intRepr);
         }
-
-        long longRepr = Long.parseLong(binary,2);
-
-        System.out.println("Long Integer Encoding: " + longRepr);
-
-        getStream().writeLong(longRepr);
-
     }
 
     public void writeFile() throws IOException{ readRules(); System.out.println("===HEADER===");
