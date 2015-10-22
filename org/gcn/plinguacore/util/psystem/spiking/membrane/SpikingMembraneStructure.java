@@ -1563,5 +1563,22 @@ public class SpikingMembraneStructure implements MembraneStructure {
 	}
    
 	
+    /* ACL, DCS Edit */
+
+    public int[][] getMatrixRepresentation(){
+        
+        int size = this.cellsById.size();
+        int[][] matrix = new int[size][size];
+
+        for( int neuron : graph.keySet() ){
+            Set<Integer> outgoingCons = graph.get(neuron);
+
+            for( int outgoingCon : outgoingCons )
+                matrix[neuron - 1][outgoingCon - 1] = 1;
+        }
+
+        return matrix;
+
+    }
 
 }
