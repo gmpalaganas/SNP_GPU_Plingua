@@ -205,11 +205,11 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
             System.out.println("");
         }
 
-        int intRepr = Integer.parseInt(binary,2);
+        long longRepr = Long.parseLong(binary,2);
 
-        System.out.println("Integer Encoding: " + intRepr);
+        System.out.println("Long Integer Encoding: " + longRepr);
 
-        getStream().write(intRepr);
+        getStream().writeLong(longRepr);
 
     }
 
