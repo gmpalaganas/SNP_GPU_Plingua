@@ -55,6 +55,21 @@ import org.gcn.plinguacore.util.psystem.spiking.membrane.ArcInfo;
 
 class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
 
+    //Constants
+    private char REGEXP_A = 'a';
+    private char REGEXP_STAR = '*';
+    private char REGEXP_PLUS = '+';
+    private char REGEXP_LPAREN = '(';
+    private char REGEXP_RPAREN = ')';
+    
+    private String ENCODED_REGEXP_A      = "0100"; //a
+    private String ENCODED_REGEXP_STAR   = "0111"; //*
+    private String ENCODED_REGEXP_PLUS   = "0000"; //+
+    private String ENCODED_REGEXP_LPAREN = "0011"; //(
+    private String ENCODED_REGEXP_RPAREN = "0011"; //)
+    private String ENCODED_REGEXP_NONE   = "1000"; //No Regexp
+
+    
     private Map<String, Integer> neurons;
 
     private List<Integer> spikes;
@@ -163,19 +178,55 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
 
     public void writeSpikingRules() throws IOException{
 
-        for(SpikingRuleBlock rule: spikingRules){
-            System.out.println(rule.toString());
+        writeRuleLHSBlocks();
+        writeRuleRHSBlocks();
 
-            if(rule.getRegExp().length() == 0)
-                getStream().writeByte(0);
-            else
-                getStream().writeBytes(rule.getRegExp());
+    }
 
-            getStream().writeByte(rule.getConsumedSpikes());
-            getStream().writeByte(rule.getProducedSpikes());
-            getStream().writeByte(rule.getDelay());
-        }
-        
+    public void writeRuleLHSBlocks() throws IOException{
+
+        for(SpikingRuleBlock rule : spikingRules)
+            writeRuleLHS(rule);
+
+    }
+
+    public void writeRuleRHSBlocks() throws IOException{
+
+        for(SpikingRuleBlock rule : spikingRules)
+            writeRuleRHS(rule);
+
+    }
+
+    public void writeRuleLHS(SpikingRuleBlock rule) throws IOException{
+
+        System.out.println(rule.toString());
+
+        writeRuleRegExp(rule);
+        getStream().writeByte(rule.getConsumedSpikes());
+
+    }
+
+    public void writeRuleRHS(SpikingRuleBlock rule) throws IOException{
+
+        getStream().writeByte(rule.getProducedSpikes());
+        getStream().writeByte(rule.getDelay());
+
+    }
+
+    public void writeRuleRegExp(SpikingRuleBlock rule) throws IOException{
+
+        String encodedRegExp = encodeRegExp(rule.getRegExp());
+        int regExpInt = Integer.parseInt(encodedRegExp,2);
+
+        String regExp = (rule.getRegExp().length() == 0)?"NONE":rule.getRegExp();
+
+        System.out.println("Regular Expression: " + regExp);
+        System.out.println("Integer encoding: " + regExpInt);
+        System.out.println("Binary encoding: " + Integer.toBinaryString(regExpInt));
+        System.out.println("Hex encoding: " + Integer.toHexString(regExpInt));
+
+        getStream().write(regExpInt);
+
     }
 
     public void writeLabels() throws IOException{
@@ -233,6 +284,41 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
     public byte getFileId(){
 
         return 0x31;
+
+    }
+    
+    public String encodeRegExp(String regExp){
+        
+        if(regExp.length() == 0)
+            return ENCODED_REGEXP_NONE;
+        
+        String encodedRegExp = "";
+
+        for(int i = 0; i < regExp.length(); i++){
+            char curChar = regExp.charAt(i);
+            encodedRegExp += encodeRegExpChar(curChar);
+        }
+
+        return encodedRegExp;
+
+    }
+
+    public String encodeRegExpChar(char c){
+        
+        String encodedChar = ENCODED_REGEXP_NONE;
+
+        if(c == REGEXP_A)
+            encodedChar = ENCODED_REGEXP_A;
+        else if(c == REGEXP_STAR)
+            encodedChar = ENCODED_REGEXP_STAR;
+        else if(c == REGEXP_PLUS)
+            encodedChar = ENCODED_REGEXP_PLUS;
+        else if(c == REGEXP_LPAREN)
+            encodedChar = ENCODED_REGEXP_LPAREN;
+        else if(c == REGEXP_STAR)
+            encodedChar = ENCODED_REGEXP_RPAREN;
+
+        return encodedChar;
 
     }
 }
