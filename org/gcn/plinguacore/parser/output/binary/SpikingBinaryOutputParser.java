@@ -103,9 +103,9 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
         System.out.println(0x12);
         System.out.println(0xFB);
 
-        getStream().write(0xAF);
-        getStream().write(0x12);
-        getStream().write(0xFB);
+        getStream().writeByte(0xAF);
+        getStream().writeByte(0x12);
+        getStream().writeByte(0xFB);
 
     }
 
