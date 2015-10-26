@@ -261,8 +261,10 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
         }
     }
 
-    public void writeFile() throws IOException{ readRules(); System.out.println("===HEADER===");
+    public void writeFile() throws IOException{ 
 
+        readRules();
+        System.out.println("===HEADER===");
         writeHeader();
         System.out.println("===SUB-HEADER===");
         writeSubHeader();
