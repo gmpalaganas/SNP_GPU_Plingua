@@ -37,27 +37,34 @@ public class SpikingRuleBlock{
     private int consumedSpikes;
     private int producedSpikes;
     private int delay;
+    private int neuronId;
 
-    public SpikingRuleBlock(String e,int c,int p,int d){
+    public SpikingRuleBlock(int id, String e,int c,int p,int d){
         regEx = e;
         consumedSpikes = c;
         producedSpikes = p;
         delay = d;
+        neuronId = id;
     }
 
-    public SpikingRuleBlock(SpikingRule rule){
+    public SpikingRuleBlock(int neuronId,SpikingRule rule){
         String leftHand = rule.getLeftHandRule().toString();
         String rightHand = rule.getRightHandRule().toString();
 
         consumedSpikes = this.extractSpikeNumber(leftHand);
         producedSpikes = this.extractSpikeNumber(rightHand);
         delay = (int)rule.getDelay();
+        this.neuronId = neuronId;
 
         if( rule.getRegExp() != null)
             regEx = rule.getRegExp().toString();
         else
             regEx = "";
        
+    }
+
+    public int getNeuronId(){
+        return neuronId;
     }
 
     public String getRegExp(){

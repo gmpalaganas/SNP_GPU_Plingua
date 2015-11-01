@@ -70,7 +70,7 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
     private String ENCODED_REGEXP_NONE   = "1000"; //No Regexp
 
     
-    private Map<String, Integer> neurons;
+    private List<SpikingMembrane> neurons;
 
     private List<Integer> spikes;
 
@@ -78,21 +78,34 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
 
     public SpikingBinaryOutputParser(){
 
-        neurons = new LinkedHashMap<String,Integer>();
+        neurons  = new ArrayList<SpikingMembrane>();
         spikes = new ArrayList<Integer>();
         spikingRules = new ArrayList<SpikingRuleBlock>();
 
+    }
+
+    public void readNeurons(){
+        SpikingMembraneStructure structure = (SpikingMembraneStructure)getPsystem().getMembraneStructure();
+        Iterator<SpikingMembrane> it = (Iterator<SpikingMembrane>)structure.getAllMembranes().iterator();
+       
+        while(it.hasNext()){
+            SpikingMembrane neuron = it.next();
+            neurons.add(neuron);
+        }
     }
 
     public void readRules(){
 
         spikingRules.clear();
 
-        for(IRule rule : getPsystem().getRules()){
+        for(SpikingMembrane neuron : neurons){
+            Iterator<IRule> it = getPsystem().getRules().iterator(neuron.getLabel(), 0);
 
-            SpikingRuleBlock ruleBlock = new SpikingRuleBlock((SpikingRule)rule);
-            spikingRules.add(ruleBlock);
-
+            while(it.hasNext()){
+                IRule rule = it.next();
+                SpikingRuleBlock ruleBlock = new SpikingRuleBlock(neuron.getId(),(SpikingRule)rule);
+                spikingRules.add(ruleBlock);
+            }
         }
 
     }
@@ -263,6 +276,7 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
 
     public void writeFile() throws IOException{ 
 
+        readNeurons();
         readRules();
         System.out.println("===HEADER===");
         writeHeader();
