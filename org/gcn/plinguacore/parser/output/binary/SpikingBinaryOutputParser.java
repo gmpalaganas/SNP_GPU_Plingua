@@ -175,7 +175,7 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
 
         while(it.hasNext()){
             int spikes = (int)it.next().getMultiSet().count("a"); 
-            getStream().writeByte(spikes);
+            getStream().writeInt(spikes);
             initConfig += spikes;
             if(it.hasNext())
                 initConfig += ", ";
@@ -191,9 +191,15 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
 
     public void writeSpikingRules() throws IOException{
 
+        writeRuleIdBlocks();
         writeRuleLHSBlocks();
         writeRuleRHSBlocks();
 
+    }
+
+    public void writeRuleIdBlocks() throws IOException{
+        for(SpikingRuleBlock rule : spikingRules)
+            getStream().writeInt(rule.getNeuronId());
     }
 
     public void writeRuleLHSBlocks() throws IOException{
@@ -215,14 +221,14 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
         System.out.println(rule.toString());
 
         writeRuleRegExp(rule);
-        getStream().writeByte(rule.getConsumedSpikes());
+        getStream().writeInt(rule.getConsumedSpikes());
 
     }
 
     public void writeRuleRHS(SpikingRuleBlock rule) throws IOException{
 
-        getStream().writeByte(rule.getProducedSpikes());
-        getStream().writeByte(rule.getDelay());
+        getStream().writeInt(rule.getProducedSpikes());
+        getStream().writeInt(rule.getDelay());
 
     }
 
