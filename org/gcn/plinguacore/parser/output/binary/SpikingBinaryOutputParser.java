@@ -32,6 +32,7 @@ import org.gcn.plinguacore.util.psystem.membrane.MembraneStructure;
 import org.gcn.plinguacore.util.psystem.rule.IRule;
 import org.gcn.plinguacore.util.psystem.rule.spiking.SpikingRule;
 import org.gcn.plinguacore.util.psystem.rule.spiking.SpikingRuleBlock;
+import org.gcn.plinguacore.util.psystem.rule.spiking.SpikingRegExpChar;
 
 import org.gcn.plinguacore.util.psystem.spiking.SpikingPsystem;
 
@@ -54,22 +55,9 @@ import org.gcn.plinguacore.util.psystem.spiking.membrane.ArcInfo;
 //import org.gcn.plinguacore.util.psystem.cellLike.membrane.CellLikeSkinMembrane;
 
 class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
-
-    //Constants
-    private char REGEXP_A = 'a';
-    private char REGEXP_STAR = '*';
-    private char REGEXP_PLUS = '+';
-    private char REGEXP_LPAREN = '(';
-    private char REGEXP_RPAREN = ')';
     
-    private String ENCODED_REGEXP_A      = "0100"; //a
-    private String ENCODED_REGEXP_STAR   = "0111"; //*
-    private String ENCODED_REGEXP_PLUS   = "0000"; //+
-    private String ENCODED_REGEXP_LPAREN = "0011"; //(
-    private String ENCODED_REGEXP_RPAREN = "0011"; //)
-    private String ENCODED_REGEXP_NONE   = "1000"; //No Regexp
+    private final String REGEXP_NONE = "0";
 
-    
     private List<SpikingMembrane> neurons;
 
     private List<Integer> spikes;
@@ -236,6 +224,7 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
 
         String encodedRegExp = encodeRegExp(rule.getRegExp());
         int regExpInt = Integer.parseInt(encodedRegExp,2);
+        int regExpLen = encodedRegExp.length();
 
         String regExp = (rule.getRegExp().length() == 0)?"NONE":rule.getRegExp();
 
@@ -244,7 +233,8 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
         System.out.println("Binary encoding: " + Integer.toBinaryString(regExpInt));
         System.out.println("Hex encoding: " + Integer.toHexString(regExpInt));
 
-        getStream().write(regExpInt);
+        getStream().writeInt(regExpLen);
+        getStream().writeInt(regExpInt);
 
     }
 
@@ -312,7 +302,7 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
     public String encodeRegExp(String regExp){
         
         if(regExp.length() == 0)
-            return ENCODED_REGEXP_NONE;
+            return REGEXP_NONE; 
         
         String encodedRegExp = "";
 
@@ -327,20 +317,15 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
 
     public String encodeRegExpChar(char c){
         
-        String encodedChar = ENCODED_REGEXP_NONE;
+        String encodedChar = REGEXP_NONE;
 
-        if(c == REGEXP_A)
-            encodedChar = ENCODED_REGEXP_A;
-        else if(c == REGEXP_STAR)
-            encodedChar = ENCODED_REGEXP_STAR;
-        else if(c == REGEXP_PLUS)
-            encodedChar = ENCODED_REGEXP_PLUS;
-        else if(c == REGEXP_LPAREN)
-            encodedChar = ENCODED_REGEXP_LPAREN;
-        else if(c == REGEXP_STAR)
-            encodedChar = ENCODED_REGEXP_RPAREN;
+        for(SpikingRegExpChar r : SpikingRegExpChar.values())
+            if(c == r.regExpChar()){
+                encodedChar = r.encoded();
+                break;
+            }
 
-        return encodedChar;
+       return encodedChar;
 
     }
 }
