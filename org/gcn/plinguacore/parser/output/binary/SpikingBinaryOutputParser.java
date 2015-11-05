@@ -248,26 +248,40 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
 
         SpikingMembraneStructure structure = (SpikingMembraneStructure)getPsystem().getMembraneStructure();
         int size = structure.getAllMembranes().size() - 1;
-        
         int[][] matrix = structure.getMatrixRepresentation();
-
+        String binary = "";
         
         System.out.println("Matrix Representation");
         for(int i = 0; i < size; i++){
-            String binary = "";
 
             for(int j = 0; j < size; j++){
                 binary += Integer.toString(matrix[i][j]);
   
                 String out = Integer.toString(matrix[i][j]);
-                out += (j < size - 1)?",":"";
+                out += (j < size - 1)?",":"\n";
                 System.out.print(out);
             }
-
-            int intRepr = Integer.parseInt(binary,2);
-            getStream().writeLong(intRepr);
-            System.out.println(" Integer Repr: " + intRepr);
         }
+
+        double log4size = Math.log(size)/Math.log(4);
+        log4size = Math.ceil(log4size);
+        int headSize = (int)Math.pow(4,log4size);
+
+        String output = "";
+
+        for(int i = 0; i < headSize; i++)
+            output += "0";
+
+        output += binary;
+        System.out.println("Binary: " + output);
+
+        for(int i = 0; i < output.length() / 4; i++){
+            int curIndex = i * 4;
+            String curByte = output.substring(curIndex, curIndex + 4);
+            int intRepr = Integer.parseInt(curByte, 2);
+            getStream().writeByte(intRepr);
+        }
+
     }
 
     public void writeFile() throws IOException{ 
@@ -307,8 +321,7 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
         String encodedRegExp = "";
 
         for(int i = 0; i < regExp.length(); i++){
-            char curChar = regExp.charAt(i);
-            encodedRegExp += encodeRegExpChar(curChar);
+            char curChar = regExp.charAt(i); encodedRegExp += encodeRegExpChar(curChar);
         }
 
         return encodedRegExp;

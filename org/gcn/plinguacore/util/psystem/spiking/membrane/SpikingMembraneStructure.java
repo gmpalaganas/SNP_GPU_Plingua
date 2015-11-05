@@ -1568,9 +1568,7 @@ public class SpikingMembraneStructure implements MembraneStructure {
     public int[][] getMatrixRepresentation(){
         
         int size = this.cellsById.size();
-        double log4size = Math.log(size) / Math.log(4);
-        int matSize = (int)Math.ceil(log4size);
-        int[][] matrix = new int[matSize][matSize];
+        int[][] matrix = new int[size][size];
 
         for( int neuron : graph.keySet() ){
             Set<Integer> outgoingCons = graph.get(neuron);
