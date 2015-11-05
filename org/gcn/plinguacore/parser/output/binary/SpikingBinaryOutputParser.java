@@ -87,6 +87,10 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
         spikingRules.clear();
 
         for(SpikingMembrane neuron : neurons){
+            
+            if(neuron.getLabel().equals("environment"))
+                continue;
+
             Iterator<IRule> it = getPsystem().getRules().iterator(neuron.getLabel(), 0);
 
             while(it.hasNext()){
@@ -223,7 +227,7 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
     public void writeRuleRegExp(SpikingRuleBlock rule) throws IOException{
 
         String encodedRegExp = encodeRegExp(rule.getRegExp());
-        int regExpInt = Integer.parseInt(encodedRegExp,2);
+        int regExpInt = Integer.parseInt(encodedRegExp, 2);
         int regExpLen = encodedRegExp.length();
 
         String regExp = (rule.getRegExp().length() == 0)?"NONE":rule.getRegExp();
@@ -234,7 +238,7 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
         System.out.println("Hex encoding: " + Integer.toHexString(regExpInt));
 
         getStream().writeInt(regExpLen);
-        getStream().writeInt(regExpInt);
+        writeAsBytes(encodedRegExp);
 
     }
 
@@ -263,9 +267,14 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
             }
         }
 
-        double log4size = Math.log(size)/Math.log(4);
-        log4size = Math.ceil(log4size);
-        int headSize = (int)Math.pow(4,log4size);
+        writeAsBytes(binary);
+    }
+
+    public void writeAsBytes(String binary) throws IOException{
+        
+        int size = binary.length();
+        int factor = (int)Math.ceil( (double)size / 4 );
+        int headSize = (4 * factor) - size;
 
         String output = "";
 
@@ -274,6 +283,7 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
 
         output += binary;
         System.out.println("Binary: " + output);
+        System.out.println("Binary len: " + output.length());
 
         for(int i = 0; i < output.length() / 4; i++){
             int curIndex = i * 4;
@@ -281,7 +291,6 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
             int intRepr = Integer.parseInt(curByte, 2);
             getStream().writeByte(intRepr);
         }
-
     }
 
     public void writeFile() throws IOException{ 
