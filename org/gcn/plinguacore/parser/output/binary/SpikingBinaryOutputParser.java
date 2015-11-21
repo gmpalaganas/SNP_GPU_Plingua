@@ -58,6 +58,7 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
     
     private final String REGEXP_NONE = "0";
 
+    private List<Byte> bytesContainer;
     private List<SpikingMembrane> neurons;
 
     private List<Integer> spikes;
@@ -112,6 +113,8 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
         getStream().writeByte(0x12);
         getStream().writeByte(0xFB);
 
+        getStream().flush();
+
     }
 
     public void writeSubHeader() throws IOException{
@@ -135,7 +138,8 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
 
         System.out.println("Number of Rules: " + ruleCount);
 
-        getStream().write(ruleCount);
+        getStream().writeInt(ruleCount);
+        getStream().flush();
 
     }
 
@@ -148,7 +152,8 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
 
         System.out.println("Number of Neurons: " + neuronCount);
 
-        getStream().write(neuronCount);
+        getStream().writeInt(neuronCount);
+        getStream().flush();
 
     }
 
@@ -168,6 +173,7 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
         while(it.hasNext()){
             int spikes = (int)it.next().getMultiSet().count("a"); 
             getStream().writeInt(spikes);
+            getStream().flush();
             initConfig += spikes;
             if(it.hasNext())
                 initConfig += ", ";
@@ -190,8 +196,12 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
     }
 
     public void writeRuleIdBlocks() throws IOException{
-        for(SpikingRuleBlock rule : spikingRules)
+
+        for(SpikingRuleBlock rule : spikingRules){
             getStream().writeInt(rule.getNeuronId());
+            getStream().flush();
+        }
+
     }
 
     public void writeRuleLHSBlocks() throws IOException{
@@ -213,14 +223,20 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
         System.out.println(rule.toString());
 
         writeRuleRegExp(rule);
+        System.out.println("Rule Consumed Spikes: " + rule.getConsumedSpikes());
         getStream().writeInt(rule.getConsumedSpikes());
+        getStream().flush();
 
     }
 
     public void writeRuleRHS(SpikingRuleBlock rule) throws IOException{
 
+        System.out.println("Rule Produced Spikes: " + rule.getProducedSpikes());
+        System.out.println("Rule Delay: " + rule.getDelay());
         getStream().writeInt(rule.getProducedSpikes());
+        getStream().flush();
         getStream().writeInt(rule.getDelay());
+        getStream().flush();
 
     }
 
@@ -229,22 +245,36 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
         String encodedRegExp = encodeRegExp(rule.getRegExp());
         int regExpInt = Integer.parseInt(encodedRegExp, 2);
         int regExpLen = encodedRegExp.length();
+        String regExpHex = Integer.toHexString(regExpInt); 
 
         String regExp = (rule.getRegExp().length() == 0)?"NONE":rule.getRegExp();
 
         System.out.println("Regular Expression: " + regExp);
+        System.out.println("Regular Expression encode len: " + regExpLen);
         System.out.println("Integer encoding: " + regExpInt);
         System.out.println("Binary encoding: " + Integer.toBinaryString(regExpInt));
         System.out.println("Hex encoding: " + Integer.toHexString(regExpInt));
 
-        getStream().writeInt(regExpLen);
+        getStream().writeInt(encodedRegExp.length());
+        getStream().flush();
         writeAsBytes(encodedRegExp);
 
     }
 
     public void writeLabels() throws IOException{
-        //TODO write labels according to format
-        return;
+
+        for(SpikingMembrane neuron : neurons){
+
+            if(neuron.getLabel().equals("environment"))
+                continue;
+
+            System.out.println("Label length: " + neuron.getLabel().length());
+            getStream().writeInt(neuron.getLabel().length());
+            getStream().flush();
+            System.out.println("Neuron Label: " + neuron.getLabel());
+            getStream().writeBytes(neuron.getLabel());
+            getStream().flush();
+        }
 
     }
 
@@ -273,8 +303,9 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
     public void writeAsBytes(String binary) throws IOException{
         
         int size = binary.length();
-        int factor = (int)Math.ceil( (double)size / 4 );
-        int headSize = (4 * factor) - size;
+        int factor = (int)Math.ceil( (double)size / 8 );
+        int headSize = (8 * factor) - size;
+        byte[] byteArray = new byte[factor];
 
         String output = "";
 
@@ -285,12 +316,26 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
         System.out.println("Binary: " + output);
         System.out.println("Binary len: " + output.length());
 
-        for(int i = 0; i < output.length() / 4; i++){
-            int curIndex = i * 4;
-            String curByte = output.substring(curIndex, curIndex + 4);
-            int intRepr = Integer.parseInt(curByte, 2);
-            getStream().writeByte(intRepr);
+        for(int i = 0; i < output.length() / 8; i++){
+            int curIndex = i * 8;
+            String curByte = output.substring(curIndex, curIndex + 8);
+            System.out.println("Cur Byte: " + curByte);
+            Integer intRepr = Integer.parseInt(curByte, 2);
+            System.out.println("Hex encoding: " + Integer.toHexString(intRepr));
+            byteArray[i] = intRepr.byteValue();
         }
+
+        for(int i = 0; i < byteArray.length; i++)
+            System.out.print(Integer.toHexString((int)byteArray[i]));
+
+        System.out.println("");
+
+        for(byte b : byteArray){
+            getStream().writeByte(b);
+        }
+
+        getStream().flush();
+
     }
 
     public void writeFile() throws IOException{ 
@@ -303,10 +348,13 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
         writeSubHeader();
         System.out.println("===RULES===");
         writeSpikingRules();
+        System.out.println("===LABELS===");
         writeLabels();
         System.out.println("===SYNAPSES===");
         writeSynapses();
         System.out.println("===END===");
+
+        getStream().close();
         
     }
 
