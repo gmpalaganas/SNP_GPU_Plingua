@@ -14,6 +14,7 @@ import java.util.Set;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.HashMap;
 
 import org.gcn.plinguacore.simulator.spiking.SpikingSimulator;
 
@@ -41,18 +42,7 @@ import org.gcn.plinguacore.util.psystem.spiking.membrane.SpikingMembrane;
 import org.gcn.plinguacore.util.psystem.spiking.membrane.SpikingMembraneStructure;
 import org.gcn.plinguacore.util.psystem.spiking.membrane.ArcInfo;
 
-//import org.gcn.plinguacore.simulator.cellLike.probabilistic.dcba.StaticMethods;
-//import org.gcn.plinguacore.simulator.cellLike.probabilistic.dcba.DCBAProbabilisticSimulator;
-//import org.gcn.plinguacore.simulator.cellLike.probabilistic.dcba.EnvironmentRulesBlock;
-//import org.gcn.plinguacore.simulator.cellLike.probabilistic.dcba.MatrixColumn;
-//import org.gcn.plinguacore.simulator.cellLike.probabilistic.dcba.SkeletonRulesBlock;
-//import org.gcn.plinguacore.simulator.cellLike.probabilistic.dcba.StaticMethods;
-//import org.gcn.plinguacore.util.ByteOrderDataOutputStream;
-//import org.gcn.plinguacore.util.MultiSet;
-//import org.gcn.plinguacore.util.PlinguaCoreException;
-//import org.gcn.plinguacore.util.psystem.AlphabetObject;
-//import org.gcn.plinguacore.util.psystem.cellLike.membrane.CellLikeMembrane;
-//import org.gcn.plinguacore.util.psystem.cellLike.membrane.CellLikeSkinMembrane;
+//env.getInputSequenceValue();
 
 class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
     
@@ -62,6 +52,7 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
     private List<SpikingMembrane> neurons;
 
     private List<Integer> spikes;
+    private Map<Long,Long> inputSpikeTrain;
 
     private List<SpikingRuleBlock> spikingRules;
 
@@ -70,6 +61,7 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
         neurons  = new ArrayList<SpikingMembrane>();
         spikes = new ArrayList<Integer>();
         spikingRules = new ArrayList<SpikingRuleBlock>();
+        
 
     }
 
@@ -103,6 +95,14 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
 
     }
 
+    public void readInputSpikeTrain(){
+        
+        SpikingMembraneStructure structure = (SpikingMembraneStructure)getPsystem().getMembraneStructure();
+        SpikingEnvironment env = (SpikingEnvironment)structure.getEnvironmentMembrane();
+        inputSpikeTrain = env.getInputSequence();
+
+    }
+
     public void writeHeader() throws IOException{
 
         System.out.println(0xAF);
@@ -123,6 +123,7 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
         writeRuleCount();
         writeNeuronCount();
         writeInitialConfiguration();
+        writeInputSpikeTrain();
         
     }
 
@@ -184,6 +185,20 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
         System.out.println(initConfig);
 
 
+    }
+
+    public void writeInputSpikeTrain() throws IOException{
+        System.out.println("Input Spike Train");
+        System.out.println("Spike Train Length: " + inputSpikeTrain.size());
+        getStream().writeInt(inputSpikeTrain.size());
+
+        for(Long key : inputSpikeTrain.keySet()){ 
+            Long value = inputSpikeTrain.get(key);       
+            System.out.println("Step: " + key + " Incoming Spikes: " + value);
+            getStream().writeInt(key.intValue());
+            getStream().writeInt(value.intValue());
+        }
+        getStream().flush();
     }
 
 
@@ -342,6 +357,7 @@ class SpikingBinaryOutputParser extends AbstractBinaryOutputParser{
 
         readNeurons();
         readRules();
+        readInputSpikeTrain();
         System.out.println("===HEADER===");
         writeHeader();
         System.out.println("===SUB-HEADER===");
