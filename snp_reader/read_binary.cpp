@@ -88,6 +88,39 @@ int main(){
             cout << "}\n";
     }
 
+    input.read(reinterpret_cast<char *>(&in_int), sizeof(int));
+    int * input_spike_train_steps;
+    int * input_spike_train_spikes;
+
+    int input_spike_train_len = big_to_small_endian(in_int);
+
+    if(input_spike_train_len != 0){
+        input_spike_train_steps = new int[input_spike_train_len];
+        input_spike_train_spikes = new int[input_spike_train_len];
+    }
+
+    for(int i = 0; i < input_spike_train_len; i++){
+        input.read(reinterpret_cast<char *>(&in_int), sizeof(int));
+        int step = big_to_small_endian(in_int);
+        input.read(reinterpret_cast<char *>(&in_int), sizeof(int));
+        int spike = big_to_small_endian(in_int);
+
+        input_spike_train_steps[i] = step;
+        input_spike_train_spikes[i] = spike;
+    }
+
+    cout << "Input Spike Train: [";
+
+    for(int i = 0; i < input_spike_train_len; i++){
+        cout << "<" << input_spike_train_steps[i] << ", " << input_spike_train_spikes[i] << ">";
+        
+        if(i < input_spike_train_len - 1)
+            cout << ", ";
+    }
+
+    cout << "]\n";
+    
+
     cout << "===RULES===" << endl;
     int rule_ids[rule_count];
 
@@ -212,6 +245,11 @@ int main(){
                 cout << ", ";
         }
         cout << endl;
+    }
+
+    if(input_spike_train_len != 0){
+        delete[] input_spike_train_steps;
+        delete[] input_spike_train_spikes;
     }
     
 }
